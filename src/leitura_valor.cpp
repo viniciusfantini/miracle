@@ -1,0 +1,121 @@
+#include "leitura_valor.h"
+#include <cstdio>
+#include <cstring>
+#include <cstdlib>
+#include <algorithm>
+
+namespace {
+
+constexpr int LIMIAR_TINTA = 35; // diferenca por canal (BGR) pra considerar "tem tinta" nesse pixel
+
+bool pixelTemTinta(const BYTE* p, BYTE fundoB, BYTE fundoG, BYTE fundoR) {
+    return std::abs((int)p[0] - fundoB) > LIMIAR_TINTA ||
+           std::abs((int)p[1] - fundoG) > LIMIAR_TINTA ||
+           std::abs((int)p[2] - fundoR) > LIMIAR_TINTA;
+}
+
+std::vector<BYTE> extrairFatia(const std::vector<BYTE>& bufferGrande, int larguraGrande, int altura,
+                                int offsetX, int largura) {
+    std::vector<BYTE> sub((size_t)largura * altura * 4);
+    for (int linha = 0; linha < altura; ++linha) {
+        const BYTE* origem = bufferGrande.data() + ((size_t)linha * larguraGrande + offsetX) * 4;
+        BYTE* destino = sub.data() + (size_t)linha * largura * 4;
+        std::memcpy(destino, origem, (size_t)largura * 4);
+    }
+    return sub;
+}
+
+long long diferencaEntre(const std::vector<BYTE>& a, const std::vector<BYTE>& b) {
+    if (a.size() != b.size()) return -1;
+    long long soma = 0;
+    for (size_t i = 0; i < a.size(); ++i) soma += std::abs((int)a[i] - (int)b[i]);
+    return soma;
+}
+
+} // namespace
+
+std::vector<Segmento> segmentarCaracteres(const CapturaRegiao& cap) {
+    std::vector<Segmento> segmentos;
+    const RegiaoTela& r = cap.regiao();
+    const std::vector<BYTE>& buf = cap.pixelsBrutos();
+    if (r.largura <= 0 || r.altura <= 0 || buf.size() < (size_t)r.largura * r.altura * 4) return segmentos;
+
+    // amostra o fundo no canto superior esquerdo -- assume que a
+    // calibracao da regiao deixou uma margem de fundo ali (sem cortar em
+    // cima de um digito).
+    BYTE fundoB = buf[0], fundoG = buf[1], fundoR = buf[2];
+
+    std::vector<bool> temTinta(r.largura, false);
+    for (int x = 0; x < r.largura; ++x) {
+        for (int y = 0; y < r.altura; ++y) {
+            const BYTE* p = buf.data() + ((size_t)y * r.largura + x) * 4;
+            if (pixelTemTinta(p, fundoB, fundoG, fundoR)) { temTinta[x] = true; break; }
+        }
+    }
+
+    int inicio = -1;
+    for (int x = 0; x <= r.largura; ++x) {
+        bool tinta = (x < r.largura) && temTinta[x];
+        if (tinta && inicio < 0) {
+            inicio = x;
+        } else if (!tinta && inicio >= 0) {
+            Segmento s;
+            s.offsetX = inicio;
+            s.largura = x - inicio;
+            s.bitmap = extrairFatia(buf, r.largura, r.altura, inicio, s.largura);
+            segmentos.push_back(std::move(s));
+            inicio = -1;
+        }
+    }
+
+    return segmentos;
+}
+
+std::optional<long long> lerResultadoEmCentavos(const CapturaRegiao& cap, const Calibracao& cal) {
+    std::vector<Segmento> segmentos = segmentarCaracteres(cap);
+    if (segmentos.empty()) return std::nullopt;
+
+    std::string reconhecido;
+    reconhecido.reserve(segmentos.size());
+
+    for (const auto& seg : segmentos) {
+        char melhorChar = 0;
+        long long melhorDiff = -1;
+        for (const auto& par : cal.glifos) {
+            if (par.second.largura != seg.largura) continue;
+            long long d = diferencaEntre(seg.bitmap, par.second.bitmap);
+            if (d < 0) continue;
+            if (melhorDiff < 0 || d < melhorDiff) { melhorDiff = d; melhorChar = par.first; }
+        }
+        if (melhorDiff < 0 || melhorDiff > cal.toleranciaGlifo) return std::nullopt; // nao adivinha
+        reconhecido.push_back(melhorChar);
+    }
+
+    // reconhecido agora e' algo tipo "-15,50" ou "2,00" -- converte pra
+    // centavos com sinal, sem ponto flutuante.
+    bool negativo = false;
+    size_t idx = 0;
+    if (!reconhecido.empty() && reconhecido[0] == '-') { negativo = true; idx = 1; }
+
+    size_t posVirgula = reconhecido.find(',', idx);
+    if (posVirgula == std::string::npos) return std::nullopt;
+
+    std::string parteInteira = reconhecido.substr(idx, posVirgula - idx);
+    std::string parteCentavos = reconhecido.substr(posVirgula + 1);
+    if (parteInteira.empty() || parteCentavos.size() != 2) return std::nullopt;
+    for (char c : parteInteira) if (c < '0' || c > '9') return std::nullopt;
+    for (char c : parteCentavos) if (c < '0' || c > '9') return std::nullopt;
+
+    long long valorInteiro = std::atoll(parteInteira.c_str());
+    long long valorCentavos = std::atoll(parteCentavos.c_str());
+    long long total = valorInteiro * 100 + valorCentavos;
+    return negativo ? -total : total;
+}
+
+std::string formatarCentavos(long long centavos) {
+    bool negativo = centavos < 0;
+    long long abs = negativo ? -centavos : centavos;
+    char buf[64];
+    std::snprintf(buf, sizeof(buf), "R$ %s%lld,%02lld", negativo ? "-" : "", abs / 100, abs % 100);
+    return buf;
+}
