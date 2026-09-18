@@ -115,17 +115,28 @@ std::optional<long long> lerResultadoEmCentavos(const CapturaRegiao& cap, const 
         reconhecido.push_back(melhorChar);
     }
 
-    // reconhecido agora e' algo tipo "-15,50" ou "2,00" -- converte pra
-    // centavos com sinal, sem ponto flutuante.
+    // reconhecido agora e' algo tipo "-15,50", "2,00" ou "R$-15,50" (o
+    // campo e' alinhado a' direita e tem tamanho fixo -- quando o valor e'
+    // pequeno sobra espaco na regiao e o label "R$" aparece junto). "R" e
+    // "$" sao so' decoracao, tira antes de interpretar o numero -- em
+    // QUALQUER posicao, nao so' no inicio, pra nao depender de "R$" vir
+    // sempre antes do sinal de menos.
+    std::string semPrefixo;
+    semPrefixo.reserve(reconhecido.size());
+    for (char c : reconhecido) {
+        if (c == 'R' || c == '$') continue;
+        semPrefixo.push_back(c);
+    }
+
     bool negativo = false;
     size_t idx = 0;
-    if (!reconhecido.empty() && reconhecido[0] == '-') { negativo = true; idx = 1; }
+    if (!semPrefixo.empty() && semPrefixo[0] == '-') { negativo = true; idx = 1; }
 
-    size_t posVirgula = reconhecido.find(',', idx);
+    size_t posVirgula = semPrefixo.find(',', idx);
     if (posVirgula == std::string::npos) return std::nullopt;
 
-    std::string parteInteira = reconhecido.substr(idx, posVirgula - idx);
-    std::string parteCentavos = reconhecido.substr(posVirgula + 1);
+    std::string parteInteira = semPrefixo.substr(idx, posVirgula - idx);
+    std::string parteCentavos = semPrefixo.substr(posVirgula + 1);
     if (parteInteira.empty() || parteCentavos.size() != 2) return std::nullopt;
     for (char c : parteCentavos) if (c < '0' || c > '9') return std::nullopt;
 

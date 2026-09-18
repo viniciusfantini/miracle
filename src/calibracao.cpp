@@ -115,17 +115,22 @@ bool rodarCalibracao(Calibracao& out) {
 
     std::printf("\nParte 2: campo \"Resultado em Aberto\" (ver imagem/resultado em\n");
     std::printf("aberto.png) -- o valor monetario que o Miracle vai ler pra decidir\n");
-    std::printf("reforco/saida. Aponte SO' pro numero, sem o \"R$\" na frente (o\n");
-    std::printf("sinal de menos, a virgula e o ponto de milhar, quando aparecerem,\n");
-    std::printf("fazem parte).\n");
+    std::printf("reforco/saida. Como o campo e' alinhado a' DIREITA e a regiao tem\n");
+    std::printf("tamanho FIXO, dessa vez o \"R$\" PODE entrar na regiao -- ele vai\n");
+    std::printf("aparecer sozinho quando o valor for pequeno (sobra espaco a'\n");
+    std::printf("esquerda) e o programa ja' sabe ignorar isso.\n");
     std::printf(">> Antes de clicar os cantos, compre BASTANTE contrato (o suficiente\n");
     std::printf(">> pra deixar o Resultado em Aberto BEM grande, positivo ou negativo\n");
     std::printf(">> -- ex.: -R$10.394,00) -- assim a regiao ja' e' desenhada no\n");
     std::printf(">> tamanho maximo real que ela vai precisar exibir, em vez de ficar\n");
-    std::printf(">> justa demais so' com a posicao pequena de 1 contrato.\n");
+    std::printf(">> justa demais so' com a posicao pequena de 1 contrato. Deixe uma\n");
+    std::printf(">> pequena margem a' esquerda de onde o \"-\" ou o primeiro digito\n");
+    std::printf(">> aparecem agora, pra nenhum caractere ficar EXATAMENTE colado na\n");
+    std::printf(">> borda (o programa rejeita leitura que encosta na borda, pra nunca\n");
+    std::printf(">> arriscar cortar um sinal \"-\").\n");
     aguardarEnter("compre bastante contrato agora e confirme quando o valor estiver bem grande");
 
-    POINT r1 = aguardarClique("canto SUPERIOR ESQUERDO do valor \"Resultado em Aberto\" (sem o \"R$\")");
+    POINT r1 = aguardarClique("canto SUPERIOR ESQUERDO do valor \"Resultado em Aberto\" (pode incluir o \"R$\")");
     if (r1.x < 0 && r1.y < 0) return false;
     POINT r2 = aguardarClique("canto INFERIOR DIREITO desse valor");
     if (r2.x < 0 && r2.y < 0) return false;
@@ -134,22 +139,22 @@ bool rodarCalibracao(Calibracao& out) {
     CapturaRegiao capResultado(out.regiaoResultado);
     out.glifos.clear();
 
-    std::printf("\nAgora vamos calibrar os caracteres (0-9, \"-\", \",\" e \".\") um valor de\n");
-    std::printf("cada vez. Pode ser com a conta parada (o valor so' muda com o\n");
-    std::printf("preco ou com uma operacao nova) -- va' variando a posicao/deixando\n");
-    std::printf("o preco andar um pouco entre cada rodada, pra pegar digitos\n");
-    std::printf("diferentes. O Resultado em Aberto pode mudar varias vezes por\n");
-    std::printf("segundo, rapido demais pra digitar olhando a tela ao vivo -- por\n");
-    std::printf("isso, a cada rodada o programa captura e salva uma FOTO CONGELADA\n");
-    std::printf("do campo em '%s' (nesta pasta): abra esse arquivo\n", CAMINHO_IMAGEM_CALIBRACAO);
-    std::printf("num visualizador de imagens e digite exatamente o que esta' nele --\n");
-    std::printf("ele nao muda mais, mesmo que o preco continue mudando na tela real.\n");
-    std::printf("A regiao clicada tem tamanho FIXO -- deixe BASTANTE folga nas\n");
-    std::printf("laterais (principalmente a ESQUERDA, pra caber o sinal \"-\" quando\n");
-    std::printf("o resultado ficar negativo) e embaixo/em cima, e nao so' o tamanho\n");
-    std::printf("exato do valor que esta' na tela agora -- se o valor crescer (ex.:\n");
-    std::printf("de \"2,00\" pra \"1234,56\" ou de \"2,00\" pra \"-2,00\"), uma regiao\n");
-    std::printf("justa demais corta caracteres, e o programa avisa isso mais abaixo.\n");
+    std::printf("\nAgora vamos calibrar os caracteres (0-9, \"-\", \",\", \".\", \"R\" e\n");
+    std::printf("\"$\") um valor de cada vez. Como a regiao e' alinhada a' DIREITA e\n");
+    std::printf("tem tamanho FIXO, quando o valor for PEQUENO vai sobrar espaco a'\n");
+    std::printf("esquerda mostrando o label \"R$\" -- e' esperado, digite \"R$\" junto\n");
+    std::printf("(ex.: \"R$2,00\", \"R$-8,00\") quando ele aparecer na foto. Quando o\n");
+    std::printf("valor for GRANDE o \"R$\" pode nao aparecer -- digite so' o numero\n");
+    std::printf("nesse caso. Precisa de pelo menos uma rodada com o valor PEQUENO\n");
+    std::printf("(pra calibrar 'R' e '$') e uma com o valor GRANDE (mais digitos),\n");
+    std::printf("alem de variar o preco/posicao entre rodadas pra cobrir todos os\n");
+    std::printf("digitos.\n");
+    std::printf("O Resultado em Aberto pode mudar varias vezes por segundo, rapido\n");
+    std::printf("demais pra digitar olhando a tela ao vivo -- por isso, a cada\n");
+    std::printf("rodada o programa captura e salva uma FOTO CONGELADA do campo em\n");
+    std::printf("'%s' (nesta pasta): abra esse arquivo num visualizador\n", CAMINHO_IMAGEM_CALIBRACAO);
+    std::printf("de imagens e digite exatamente o que esta' nele -- ele nao muda\n");
+    std::printf("mais, mesmo que o preco continue mudando na tela real.\n");
 
     while (true) {
         if (!capResultado.capturar()) { std::printf(">> falha ao capturar a tela.\n"); return false; }

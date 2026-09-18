@@ -14,12 +14,18 @@
 //    badge (que tem um conjunto pequeno e fixo de aparencias possiveis).
 //    Lido DIGITO A DIGITO: a regiao inteira e' segmentada em caracteres
 //    (por coluna de pixel com/sem "tinta"), cada segmento e' comparado
-//    contra os glifos calibrados (0-9, "-", ",", ".") por bitmap exato,
-//    igual a tecnica ja' usada pro badge -- so' que agora com varios
-//    "moldes" pequenos em vez de um conjunto fixo de aparencias inteiras.
+//    contra os glifos calibrados (0-9, "-", ",", ".", "R", "$") por
+//    bitmap exato, igual a tecnica ja' usada pro badge -- so' que agora
+//    com varios "moldes" pequenos em vez de um conjunto fixo de
+//    aparencias inteiras.
 //    O "." e' o separador de milhar do formato BR (ex. "1.000,00" quando
 //    o resultado passa de R$1.000) -- ignorado na hora de converter pra
 //    centavos, so' precisa ser reconhecido pra nao quebrar a segmentacao.
+//    "R"/"$" entram pelo mesmo motivo (18/09/2026): o campo e' alinhado a'
+//    DIREITA, entao a mesma regiao larga o suficiente pra caber um valor
+//    grande inevitavelmente mostra o "R$" (label fixo a' esquerda) quando
+//    o valor e' pequeno e sobra espaco. Sao ignorados na conversao, igual
+//    o ".".
 #pragma once
 
 #include "captura_tela.h"
@@ -37,15 +43,16 @@ struct Calibracao {
     std::vector<BYTE> referenciaFlat;
     long long toleranciaFlat = 0;
 
-    RegiaoTela regiaoResultado; // cobre so' o valor numerico, sem o "R$ " na frente
-    std::map<char, Glifo> glifos; // chaves esperadas: '0'..'9', '-', ',', '.'
+    RegiaoTela regiaoResultado; // pode incluir o "R$" -- ele e' reconhecido e ignorado (ver leitura_valor.cpp)
+    std::map<char, Glifo> glifos; // chaves esperadas: '0'..'9', '-', ',', '.', 'R', '$'
     long long toleranciaGlifo = 0;
 };
 
 // caracteres que uma leitura valida do Resultado em Aberto precisa ter
 // calibrados (ver calibracao.cpp). "." e' o separador de milhar BR (ex.
-// "1.000,00").
-inline std::string glifosNecessarios() { return "0123456789-,."; }
+// "1.000,00"); "R" e "$" aparecem quando o valor e' pequeno o bastante
+// pra sobrar espaco na regiao e revelar o label "R$" (ver config.h).
+inline std::string glifosNecessarios() { return "0123456789-,.R$"; }
 
 bool salvarCalibracao(const Calibracao& c, const std::string& caminhoBase);
 bool carregarCalibracao(Calibracao& c, const std::string& caminhoBase);

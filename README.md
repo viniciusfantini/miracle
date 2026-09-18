@@ -27,12 +27,21 @@ Fluxo fixo, sem leitura de gatilho:
 
 ## Como o Resultado em Aberto é lido
 
-Não é OCR de propósito geral: o valor (ex. `-15,50`, `2,00`) é segmentado
-em fatias verticais (colunas com "tinta" separadas por fundo) e cada
-fatia é comparada, bitmap exato, contra os glifos calibrados (`0`-`9`,
-`-`, `,`) do MESMO tamanho. Se uma fatia não bater com nenhum glifo
-dentro da tolerância, a leitura inteira é descartada (nunca adivinha) —
-mesma filosofia do badge de posição no `roboclone`.
+Não é OCR de propósito geral: o valor (ex. `-15,50`, `2,00`, `R$1.234,56`)
+é segmentado em fatias verticais (colunas com "tinta" separadas por
+fundo) e cada fatia é comparada, bitmap exato, contra os glifos
+calibrados (`0`-`9`, `-`, `,`, `.`, `R`, `$`) do MESMO tamanho. Se uma
+fatia não bater com nenhum glifo dentro da tolerância, **ou** se alguma
+fatia encostar na borda da região capturada (risco de caractere cortado,
+o mais perigoso sendo o sinal `-` sumir e inverter o sinal do valor), a
+leitura inteira é descartada (nunca adivinha) — mesma filosofia do badge
+de posição no `roboclone`.
+
+O campo é alinhado à direita: a mesma região precisa ser larga o
+bastante pro maior valor esperado, o que faz o label `"R$"` aparecer
+sozinho quando o valor é pequeno (sobra espaço à esquerda) — o `"R"` e
+o `"$"` são reconhecidos e simplesmente ignorados na conversão pra
+centavos, em qualquer posição no texto reconhecido.
 
 ## Uso
 
@@ -42,6 +51,13 @@ Miracle.exe calibrar # passo a passo: badge FLAT + glifos do Resultado em Aberto
 Miracle.exe debug    # roda o ciclo lendo tudo, mas SO' AVISA o que mandaria -- nao envia nada
 Miracle.exe rodar    # roda o ciclo de verdade (ver acima) -- manda ordem na janela simulador
 ```
+
+Na calibração do Resultado em Aberto, compre bastante contrato ANTES de
+clicar os cantos da região, pra desenhá-la já no tamanho máximo real
+(ex. `-R$10.394,00`) em vez de justa demais em cima de um valor pequeno.
+Cada rodada de calibração salva uma foto congelada
+(`miracle_calibracao_valor.bmp`) pra você digitar o valor sem correr
+atrás do preço mudando ao vivo na tela.
 
 Valide sempre em `debug` primeiro: confirme que "flat" é reconhecido
 corretamente e que o Resultado em Aberto lido no console bate com o que
