@@ -11,6 +11,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <vector>
 
 using namespace winrt::Windows::Graphics::Imaging;
@@ -27,9 +28,17 @@ OcrEngine g_engine{ nullptr };
 // com ampliacao por "vizinho mais proximo" (blocuda, sem suavizacao) o
 // OCR chegou a PERDER um digito inteiro (leu "-16 0" em vez de
 // "-16,00"). Trocado pra interpolacao BILINEAR (bordas suaves, mais
-// parecido com o texto anti-aliased que o OCR foi treinado pra ler) e
-// aumentado o fator de 6x pra 10x.
-constexpr int FATOR_AMPLIACAO = 10;
+// parecido com o texto anti-aliased que o OCR foi treinado pra ler).
+// Ainda testado ao vivo: com 10x a virgula (traco bem fino) ficava
+// borrada perto do digito anterior e virava um "7" fantasma (ex.
+// "-27,00" lido "RS -27700"). Subido pra 16x -- mais area de verdade
+// pra separar tracos finos do digito vizinho em vez de so' borrar.
+constexpr int FATOR_AMPLIACAO = 16;
+
+// margem de fundo (na imagem JA ampliada) ao redor do texto antes de
+// mandar pro OCR -- texto colado na borda do recorte tende a confundir
+// o motor (efeito de bordas conhecido em pre-processamento de OCR).
+constexpr int PADDING_PX = 24;
 
 BYTE amostra(const std::vector<BYTE>& origem, int largura, int altura, int x, int y, int canal) {
     x = std::clamp(x, 0, largura - 1);
@@ -66,6 +75,29 @@ std::vector<BYTE> ampliar(const std::vector<BYTE>& origem, int largura, int altu
             }
             q[3] = 255;
         }
+    }
+    return dst;
+}
+
+// adiciona 'padding' pixels de fundo (cor amostrada do canto da propria
+// imagem) em volta da imagem inteira.
+std::vector<BYTE> comPadding(const std::vector<BYTE>& origem, int largura, int altura, int padding,
+                              int& larguraOut, int& alturaOut) {
+    larguraOut = largura + padding * 2;
+    alturaOut = altura + padding * 2;
+    BYTE fundoB = origem[0], fundoG = origem[1], fundoR = origem[2];
+
+    std::vector<BYTE> dst((size_t)larguraOut * alturaOut * 4);
+    for (size_t i = 0; i < (size_t)larguraOut * alturaOut; ++i) {
+        dst[i * 4 + 0] = fundoB;
+        dst[i * 4 + 1] = fundoG;
+        dst[i * 4 + 2] = fundoR;
+        dst[i * 4 + 3] = 255;
+    }
+    for (int y = 0; y < altura; ++y) {
+        const BYTE* linhaSrc = origem.data() + (size_t)y * largura * 4;
+        BYTE* linhaDst = dst.data() + ((size_t)(y + padding) * larguraOut + padding) * 4;
+        std::memcpy(linhaDst, linhaSrc, (size_t)largura * 4);
     }
     return dst;
 }
@@ -108,13 +140,16 @@ std::optional<long long> lerResultadoEmCentavos(const CapturaRegiao& cap, std::s
     int largAmpliada = 0, altAmpliada = 0;
     std::vector<BYTE> ampliada = ampliar(buf, r.largura, r.altura, FATOR_AMPLIACAO, largAmpliada, altAmpliada);
 
+    int largFinal = 0, altFinal = 0;
+    std::vector<BYTE> comBorda = comPadding(ampliada, largAmpliada, altAmpliada, PADDING_PX, largFinal, altFinal);
+
     std::string reconhecido;
     try {
         IBuffer buffer = CryptographicBuffer::CreateFromByteArray(
-            winrt::array_view<uint8_t const>(ampliada.data(), ampliada.data() + ampliada.size()));
+            winrt::array_view<uint8_t const>(comBorda.data(), comBorda.data() + comBorda.size()));
 
         SoftwareBitmap bitmap = SoftwareBitmap::CreateCopyFromBuffer(
-            buffer, BitmapPixelFormat::Bgra8, largAmpliada, altAmpliada, BitmapAlphaMode::Ignore);
+            buffer, BitmapPixelFormat::Bgra8, largFinal, altFinal, BitmapAlphaMode::Ignore);
 
         OcrResult resultado = g_engine.RecognizeAsync(bitmap).get();
         std::wstring texto{ resultado.Text().c_str() };
