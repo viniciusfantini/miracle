@@ -6,11 +6,50 @@
 #include <cstdlib>
 #include <algorithm>
 #include <iostream>
+#include <fstream>
 #include <string>
 
 namespace {
 
 constexpr long long TOLERANCIA_GLIFO_PADRAO = 60;
+const char* CAMINHO_IMAGEM_CALIBRACAO = "miracle_calibracao_valor.bmp";
+
+// salva a captura como .bmp -- uma "foto congelada" do que foi lido, pra
+// o operador poder digitar o valor olhando uma imagem PARADA em vez de
+// correr atras do preco mudando ao vivo na tela (o Resultado em Aberto
+// pode atualizar varias vezes por segundo).
+bool salvarBmp(const CapturaRegiao& cap, const std::string& caminho) {
+    const RegiaoTela& r = cap.regiao();
+    const std::vector<BYTE>& buf = cap.pixelsBrutos();
+    if (r.largura <= 0 || r.altura <= 0 || buf.size() < (size_t)r.largura * r.altura * 4) return false;
+
+    BITMAPFILEHEADER fh = {};
+    BITMAPINFOHEADER ih = {};
+    ih.biSize = sizeof(BITMAPINFOHEADER);
+    ih.biWidth = r.largura;
+    ih.biHeight = r.altura; // positivo = BMP padrao (bottom-up)
+    ih.biPlanes = 1;
+    ih.biBitCount = 32;
+    ih.biCompression = BI_RGB;
+    ih.biSizeImage = (DWORD)((size_t)r.largura * r.altura * 4);
+
+    fh.bfType = 0x4D42; // "BM"
+    fh.bfOffBits = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER);
+    fh.bfSize = fh.bfOffBits + ih.biSizeImage;
+
+    std::ofstream f(caminho, std::ios::binary | std::ios::trunc);
+    if (!f) return false;
+    f.write(reinterpret_cast<const char*>(&fh), sizeof(fh));
+    f.write(reinterpret_cast<const char*>(&ih), sizeof(ih));
+
+    // buf e' top-down (linha 0 = topo da regiao); BMP bottom-up precisa
+    // escrever a ULTIMA linha primeiro.
+    for (int linha = r.altura - 1; linha >= 0; --linha) {
+        const char* p = reinterpret_cast<const char*>(buf.data() + (size_t)linha * r.largura * 4);
+        f.write(p, (std::streamsize)r.largura * 4);
+    }
+    return (bool)f;
+}
 
 RegiaoTela regiaoDeDoisPontos(POINT a, POINT b) {
     RegiaoTela r;
@@ -93,29 +132,47 @@ bool rodarCalibracao(Calibracao& out) {
     std::printf("cada vez. Pode ser com a conta parada (o valor so' muda com o\n");
     std::printf("preco ou com uma operacao nova) -- va' variando a posicao/deixando\n");
     std::printf("o preco andar um pouco entre cada rodada, pra pegar digitos\n");
-    std::printf("diferentes. A CAPTURA so' acontece depois que voce aperta ENTER (nao\n");
-    std::printf("antes) -- assim ela fica o mais proxima possivel do valor que voce\n");
-    std::printf("acabou de ler e digitar, em vez de correr o risco do preco ja' ter\n");
-    std::printf("mudado o valor na tela entre a captura e voce digitar.\n");
+    std::printf("diferentes. O Resultado em Aberto pode mudar varias vezes por\n");
+    std::printf("segundo, rapido demais pra digitar olhando a tela ao vivo -- por\n");
+    std::printf("isso, a cada rodada o programa captura e salva uma FOTO CONGELADA\n");
+    std::printf("do campo em '%s' (nesta pasta): abra esse arquivo\n", CAMINHO_IMAGEM_CALIBRACAO);
+    std::printf("num visualizador de imagens e digite exatamente o que esta' nele --\n");
+    std::printf("ele nao muda mais, mesmo que o preco continue mudando na tela real.\n");
     std::printf("A regiao clicada tem tamanho FIXO -- se o valor puder crescer (ex.:\n");
     std::printf("de \"2,00\" pra \"1234,56\"), deixe folga nas laterais ao clicar os\n");
     std::printf("cantos, senao digitos extras no futuro podem ficar cortados.\n");
 
     while (true) {
-        std::printf("\n>> Olhe pro campo AGORA e digite EXATAMENTE o que esta' aparecendo\n");
-        std::printf(">> (ex.: 2,00 ou -15,50, sem \"R$\") -- a captura acontece assim que\n");
-        std::printf(">> voce apertar ENTER: ");
-        std::fflush(stdout);
-        std::string digitado;
-        std::getline(std::cin, digitado);
-
         if (!capResultado.capturar()) { std::printf(">> falha ao capturar a tela.\n"); return false; }
         std::vector<BYTE> primeiraCaptura = capResultado.pixelsBrutos();
         Sleep(80);
         if (!capResultado.capturar()) { std::printf(">> falha ao capturar a tela.\n"); return false; }
         if (capResultado.pixelsBrutos() != primeiraCaptura) {
             std::printf(">> o valor mudou bem na hora da captura (o preco deve ter mexido) --\n"
-                        ">> descartando essa rodada, digite de novo.\n");
+                        ">> tentando de novo...\n");
+            continue;
+        }
+
+        if (!salvarBmp(capResultado, CAMINHO_IMAGEM_CALIBRACAO)) {
+            std::printf(">> falha ao salvar a imagem de calibracao (%s).\n", CAMINHO_IMAGEM_CALIBRACAO);
+            return false;
+        }
+
+        std::printf("\n>> Salvei '%s' -- abra esse arquivo agora e digite\n", CAMINHO_IMAGEM_CALIBRACAO);
+        std::printf(">> EXATAMENTE o valor que esta' nele (ex.: 2,00 ou -15,50, sem\n");
+        std::printf(">> \"R$\", usando VIRGULA, nao ponto): ");
+        std::fflush(stdout);
+        std::string digitado;
+        std::getline(std::cin, digitado);
+
+        bool caractereInvalido = false;
+        for (char c : digitado) {
+            if (glifosNecessarios().find(c) == std::string::npos) { caractereInvalido = true; break; }
+        }
+        if (caractereInvalido) {
+            std::printf(">> caractere fora do esperado (so' 0-9, \"-\" e \",\" sao validos --\n"
+                        ">> confira se nao digitou ponto no lugar de virgula). Tente de novo\n"
+                        ">> com a MESMA foto ainda salva em '%s'.\n", CAMINHO_IMAGEM_CALIBRACAO);
             continue;
         }
 
@@ -123,8 +180,9 @@ bool rodarCalibracao(Calibracao& out) {
 
         if (digitado.size() != segmentos.size()) {
             std::printf(">> nao bate: voce digitou %zu caractere(s) mas o programa achou %zu\n"
-                        ">> pedaco(s) na imagem. Confira se a regiao esta' certa (so' o\n"
-                        ">> numero, sem \"R$\") e tente de novo.\n", digitado.size(), segmentos.size());
+                        ">> pedaco(s) na imagem. Confira em '%s' se a regiao esta'\n"
+                        ">> certa (so' o numero, sem \"R$\") e tente de novo.\n",
+                        digitado.size(), segmentos.size(), CAMINHO_IMAGEM_CALIBRACAO);
             continue;
         }
 
