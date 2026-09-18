@@ -112,12 +112,18 @@ bool rodarCalibracao(Calibracao& out) {
     long long diffFlatComprado = diferencaEntre(out.referenciaFlat, referenciaComprado);
     out.toleranciaFlat = diffFlatComprado > 0 ? diffFlatComprado / 3 : 30;
     std::printf(">> diferenca flat<->comprado=%lld -> toleranciaFlat=%lld\n", diffFlatComprado, out.toleranciaFlat);
-    std::printf(">> pode zerar a posicao de teste agora.\n");
 
     std::printf("\nParte 2: campo \"Resultado em Aberto\" (ver imagem/resultado em\n");
     std::printf("aberto.png) -- o valor monetario que o Miracle vai ler pra decidir\n");
     std::printf("reforco/saida. Aponte SO' pro numero, sem o \"R$\" na frente (o\n");
-    std::printf("sinal de menos e a virgula, quando aparecerem, fazem parte).\n");
+    std::printf("sinal de menos, a virgula e o ponto de milhar, quando aparecerem,\n");
+    std::printf("fazem parte).\n");
+    std::printf(">> Antes de clicar os cantos, compre BASTANTE contrato (o suficiente\n");
+    std::printf(">> pra deixar o Resultado em Aberto BEM grande, positivo ou negativo\n");
+    std::printf(">> -- ex.: -R$10.394,00) -- assim a regiao ja' e' desenhada no\n");
+    std::printf(">> tamanho maximo real que ela vai precisar exibir, em vez de ficar\n");
+    std::printf(">> justa demais so' com a posicao pequena de 1 contrato.\n");
+    aguardarEnter("compre bastante contrato agora e confirme quando o valor estiver bem grande");
 
     POINT r1 = aguardarClique("canto SUPERIOR ESQUERDO do valor \"Resultado em Aberto\" (sem o \"R$\")");
     if (r1.x < 0 && r1.y < 0) return false;
