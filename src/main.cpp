@@ -185,6 +185,44 @@ int executarCiclo(Calibracao& cal, HWND leitora, HWND simulador, bool enviar) {
     return 0;
 }
 
+// modo so' de leitura -- nenhum comando, nenhuma exigencia de FLAT,
+// nenhuma janela "simulador". So' fica mostrando o Resultado em Aberto
+// reconhecido ao vivo, pra validar a leitura isolada antes de confiar
+// nela dentro do ciclo de trade (debug/rodar).
+int modoLer() {
+    Calibracao cal;
+    if (!carregarCalibracaoOuAvisar(cal)) return 1;
+
+    HWND leitora = escolherJanelaPorClique("LEITORA (onde le' o Resultado em Aberto)");
+    if (!leitora) { std::printf(">> cancelado.\n"); return 1; }
+
+    CapturaRegiao capResultado(cal.regiaoResultado);
+    std::optional<long long> ultimoImpresso;
+    std::string ultimoTextoBrutoFalho;
+
+    std::printf("\n>> Lendo o Resultado em Aberto (Ctrl+C pra parar)...\n");
+
+    while (true) {
+        Sleep(50);
+        if (!capResultado.capturar()) continue;
+
+        std::string textoBruto;
+        auto valor = lerResultadoEmCentavos(capResultado, &textoBruto);
+        if (!valor) {
+            if (!textoBruto.empty() && textoBruto != ultimoTextoBrutoFalho) {
+                std::printf(">> OCR leu (bruto, nao interpretavel): \"%s\"\n", textoBruto.c_str());
+                ultimoTextoBrutoFalho = textoBruto;
+            }
+            continue;
+        }
+
+        if (!ultimoImpresso || *ultimoImpresso != *valor) {
+            std::printf(">> resultado em aberto: %s\n", formatarCentavos(*valor).c_str());
+            ultimoImpresso = valor;
+        }
+    }
+}
+
 int modoDebugOuRodar(bool enviar) {
     Calibracao cal;
     if (!carregarCalibracaoOuAvisar(cal)) return 1;
@@ -205,14 +243,15 @@ int modoDebugOuRodar(bool enviar) {
 int main(int argc, char** argv) {
     std::string modo = argc > 1 ? argv[1] : "";
 
-    if (modo != "calibrar" && modo != "debug" && modo != "rodar") {
-        std::printf("uso: Miracle.exe <calibrar|debug|rodar>\n");
+    if (modo != "calibrar" && modo != "ler" && modo != "debug" && modo != "rodar") {
+        std::printf("uso: Miracle.exe <calibrar|ler|debug|rodar>\n");
         return 1;
     }
 
     if (!iniciarOcr()) return 1;
 
     if (modo == "calibrar") return modoCalibrar();
+    if (modo == "ler") return modoLer();
     if (modo == "debug") return modoDebugOuRodar(false);
     return modoDebugOuRodar(true);
 }

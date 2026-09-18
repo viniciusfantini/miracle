@@ -16,5 +16,6 @@ del "%~dp0*.obj" >nul 2>&1
 echo.
 echo build ok:
 echo   calibrar: Miracle.exe calibrar
+echo   ler:      Miracle.exe ler     (so' mostra o Resultado em Aberto ao vivo, sem comando nenhum)
 echo   debug:    Miracle.exe debug   (le' e mostra o que faria, nao manda nada)
 echo   rodar:    Miracle.exe rodar   (manda ordem de verdade -- so' na conta SIMULADORA)
