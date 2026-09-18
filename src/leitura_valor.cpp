@@ -6,7 +6,15 @@
 
 namespace {
 
-constexpr int LIMIAR_TINTA = 35; // diferenca por canal (BGR) pra considerar "tem tinta" nesse pixel
+// diferenca por canal (BGR) pra considerar "tem tinta" nesse pixel.
+// Medido ao vivo (18/09/2026) numa captura real do Resultado em Aberto:
+// o anti-aliasing entre caracteres vizinhos (principalmente a virgula,
+// que e' fina e fica perto da base) chega a uns 39 de diferenca mesmo
+// SEM ser o traco real do digito -- um limiar de 35 deixava colado sem
+// nenhuma coluna de fundo puro entre caracteres. 100 fica confortavel
+// no meio do platô onde a segmentacao ficou estavel (testado de 80 a
+// 150 na mesma captura, sem erodir o traco real dos digitos).
+constexpr int LIMIAR_TINTA = 100;
 
 bool pixelTemTinta(const BYTE* p, BYTE fundoB, BYTE fundoG, BYTE fundoR) {
     return std::abs((int)p[0] - fundoB) > LIMIAR_TINTA ||

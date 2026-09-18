@@ -138,9 +138,12 @@ bool rodarCalibracao(Calibracao& out) {
     std::printf("do campo em '%s' (nesta pasta): abra esse arquivo\n", CAMINHO_IMAGEM_CALIBRACAO);
     std::printf("num visualizador de imagens e digite exatamente o que esta' nele --\n");
     std::printf("ele nao muda mais, mesmo que o preco continue mudando na tela real.\n");
-    std::printf("A regiao clicada tem tamanho FIXO -- se o valor puder crescer (ex.:\n");
-    std::printf("de \"2,00\" pra \"1234,56\"), deixe folga nas laterais ao clicar os\n");
-    std::printf("cantos, senao digitos extras no futuro podem ficar cortados.\n");
+    std::printf("A regiao clicada tem tamanho FIXO -- deixe BASTANTE folga nas\n");
+    std::printf("laterais (principalmente a ESQUERDA, pra caber o sinal \"-\" quando\n");
+    std::printf("o resultado ficar negativo) e embaixo/em cima, e nao so' o tamanho\n");
+    std::printf("exato do valor que esta' na tela agora -- se o valor crescer (ex.:\n");
+    std::printf("de \"2,00\" pra \"1234,56\" ou de \"2,00\" pra \"-2,00\"), uma regiao\n");
+    std::printf("justa demais corta caracteres, e o programa avisa isso mais abaixo.\n");
 
     while (true) {
         if (!capResultado.capturar()) { std::printf(">> falha ao capturar a tela.\n"); return false; }
@@ -178,24 +181,23 @@ bool rodarCalibracao(Calibracao& out) {
 
         std::vector<Segmento> segmentos = segmentarCaracteres(capResultado);
 
+        bool encostouBorda = !segmentos.empty() &&
+                              (segmentos.front().offsetX == 0 ||
+                               segmentos.back().offsetX + segmentos.back().largura >= capResultado.regiao().largura);
+        if (encostouBorda) {
+            std::printf(">> AVISO: um pedaco encostou na borda da regiao capturada em '%s' --\n"
+                        ">> a regiao provavelmente esta' cortando um caractere (ex.: o sinal\n"
+                        ">> \"-\" ou um digito). Cancele (ESC no proximo clique) e recalibre a\n"
+                        ">> regiao do Resultado em Aberto com bem mais folga nas laterais.\n",
+                        CAMINHO_IMAGEM_CALIBRACAO);
+        }
+
         if (digitado.size() != segmentos.size()) {
             std::printf(">> nao bate: voce digitou %zu caractere(s) mas o programa achou %zu\n"
                         ">> pedaco(s) na imagem. Confira em '%s' se a regiao esta'\n"
                         ">> certa (so' o numero, sem \"R$\") e tente de novo.\n",
                         digitado.size(), segmentos.size(), CAMINHO_IMAGEM_CALIBRACAO);
             continue;
-        }
-
-        if (!segmentos.empty()) {
-            const Segmento& primeiroSeg = segmentos.front();
-            const Segmento& ultimoSeg = segmentos.back();
-            bool encostouBorda = primeiroSeg.offsetX == 0 ||
-                                  ultimoSeg.offsetX + ultimoSeg.largura >= capResultado.regiao().largura;
-            if (encostouBorda) {
-                std::printf(">> AVISO: um caractere encostou na borda da regiao capturada -- se o\n"
-                            ">> valor puder ficar maior no futuro (mais digitos), pode cortar.\n"
-                            ">> Considere recalibrar a regiao com mais folga nas laterais.\n");
-            }
         }
 
         for (size_t i = 0; i < segmentos.size(); ++i) {
