@@ -127,10 +127,21 @@ std::optional<long long> lerResultadoEmCentavos(const CapturaRegiao& cap, const 
     std::string parteInteira = reconhecido.substr(idx, posVirgula - idx);
     std::string parteCentavos = reconhecido.substr(posVirgula + 1);
     if (parteInteira.empty() || parteCentavos.size() != 2) return std::nullopt;
-    for (char c : parteInteira) if (c < '0' || c > '9') return std::nullopt;
     for (char c : parteCentavos) if (c < '0' || c > '9') return std::nullopt;
 
-    long long valorInteiro = std::atoll(parteInteira.c_str());
+    // "." e' o separador de milhar do formato BR (ex. "1.000") -- so'
+    // marca agrupamento, nao entra no valor. Ignora na hora de converter,
+    // mas exige que o resto seja digito (nunca adivinha se aparecer algo
+    // fora do esperado).
+    std::string parteInteiraSemPontos;
+    for (char c : parteInteira) {
+        if (c == '.') continue;
+        if (c < '0' || c > '9') return std::nullopt;
+        parteInteiraSemPontos.push_back(c);
+    }
+    if (parteInteiraSemPontos.empty()) return std::nullopt;
+
+    long long valorInteiro = std::atoll(parteInteiraSemPontos.c_str());
     long long valorCentavos = std::atoll(parteCentavos.c_str());
     long long total = valorInteiro * 100 + valorCentavos;
     return negativo ? -total : total;

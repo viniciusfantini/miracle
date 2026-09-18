@@ -128,7 +128,7 @@ bool rodarCalibracao(Calibracao& out) {
     CapturaRegiao capResultado(out.regiaoResultado);
     out.glifos.clear();
 
-    std::printf("\nAgora vamos calibrar os caracteres (0-9, \"-\", \",\") um valor de\n");
+    std::printf("\nAgora vamos calibrar os caracteres (0-9, \"-\", \",\" e \".\") um valor de\n");
     std::printf("cada vez. Pode ser com a conta parada (o valor so' muda com o\n");
     std::printf("preco ou com uma operacao nova) -- va' variando a posicao/deixando\n");
     std::printf("o preco andar um pouco entre cada rodada, pra pegar digitos\n");
@@ -162,8 +162,9 @@ bool rodarCalibracao(Calibracao& out) {
         }
 
         std::printf("\n>> Salvei '%s' -- abra esse arquivo agora e digite\n", CAMINHO_IMAGEM_CALIBRACAO);
-        std::printf(">> EXATAMENTE o valor que esta' nele (ex.: 2,00 ou -15,50, sem\n");
-        std::printf(">> \"R$\", usando VIRGULA, nao ponto): ");
+        std::printf(">> EXATAMENTE o valor que esta' nele (ex.: 2,00 ou -15,50, ou\n");
+        std::printf(">> 1.234,56 se passar de mil -- sem \"R$\"; a VIRGULA e' sempre a\n");
+        std::printf(">> dos centavos, o PONTO (quando tiver) e' so' separador de milhar): ");
         std::fflush(stdout);
         std::string digitado;
         std::getline(std::cin, digitado);
@@ -173,9 +174,9 @@ bool rodarCalibracao(Calibracao& out) {
             if (glifosNecessarios().find(c) == std::string::npos) { caractereInvalido = true; break; }
         }
         if (caractereInvalido) {
-            std::printf(">> caractere fora do esperado (so' 0-9, \"-\" e \",\" sao validos --\n"
-                        ">> confira se nao digitou ponto no lugar de virgula). Tente de novo\n"
-                        ">> com a MESMA foto ainda salva em '%s'.\n", CAMINHO_IMAGEM_CALIBRACAO);
+            std::printf(">> caractere fora do esperado (so' 0-9, \"-\", \",\" e \".\" sao\n"
+                        ">> validos). Tente de novo com a MESMA foto ainda salva em\n"
+                        ">> '%s'.\n", CAMINHO_IMAGEM_CALIBRACAO);
             continue;
         }
 

@@ -14,9 +14,12 @@
 //    badge (que tem um conjunto pequeno e fixo de aparencias possiveis).
 //    Lido DIGITO A DIGITO: a regiao inteira e' segmentada em caracteres
 //    (por coluna de pixel com/sem "tinta"), cada segmento e' comparado
-//    contra os glifos calibrados (0-9, "-", ",") por bitmap exato, igual
-//    a tecnica ja' usada pro badge -- so' que agora com varios "moldes"
-//    pequenos em vez de um conjunto fixo de aparencias inteiras.
+//    contra os glifos calibrados (0-9, "-", ",", ".") por bitmap exato,
+//    igual a tecnica ja' usada pro badge -- so' que agora com varios
+//    "moldes" pequenos em vez de um conjunto fixo de aparencias inteiras.
+//    O "." e' o separador de milhar do formato BR (ex. "1.000,00" quando
+//    o resultado passa de R$1.000) -- ignorado na hora de converter pra
+//    centavos, so' precisa ser reconhecido pra nao quebrar a segmentacao.
 #pragma once
 
 #include "captura_tela.h"
@@ -35,13 +38,14 @@ struct Calibracao {
     long long toleranciaFlat = 0;
 
     RegiaoTela regiaoResultado; // cobre so' o valor numerico, sem o "R$ " na frente
-    std::map<char, Glifo> glifos; // chaves esperadas: '0'..'9', '-', ','
+    std::map<char, Glifo> glifos; // chaves esperadas: '0'..'9', '-', ',', '.'
     long long toleranciaGlifo = 0;
 };
 
 // caracteres que uma leitura valida do Resultado em Aberto precisa ter
-// calibrados (ver calibracao.cpp).
-inline std::string glifosNecessarios() { return "0123456789-,"; }
+// calibrados (ver calibracao.cpp). "." e' o separador de milhar BR (ex.
+// "1.000,00").
+inline std::string glifosNecessarios() { return "0123456789-,."; }
 
 bool salvarCalibracao(const Calibracao& c, const std::string& caminhoBase);
 bool carregarCalibracao(Calibracao& c, const std::string& caminhoBase);
