@@ -40,10 +40,19 @@ std::vector<Segmento> segmentarCaracteres(const CapturaRegiao& cap);
 
 // tenta ler o valor monetario atual (em CENTAVOS, com sinal) comparando
 // os segmentos contra os glifos calibrados. Devolve nullopt se qualquer
-// segmento nao bater com nenhum glifo dentro da tolerancia, ou se a
-// sequencia reconhecida nao formar um numero valido (ex.: sem virgula,
-// virgula com menos/mais de 2 casas depois).
+// segmento nao bater com nenhum glifo dentro da tolerancia, se algum
+// pedaco encostar na borda da regiao capturada (risco de caractere
+// cortado -- ver valorTocaBorda), ou se a sequencia reconhecida nao
+// formar um numero valido (ex.: sem virgula, virgula com menos/mais de 2
+// casas depois).
 std::optional<long long> lerResultadoEmCentavos(const CapturaRegiao& cap, const Calibracao& cal);
+
+// true se o primeiro ou o ultimo pedaco segmentado encosta na borda da
+// regiao capturada -- sinal de que a regiao pode estar cortando um
+// caractere (o caso mais perigoso e' o sinal "-" sumir, invertendo o
+// sinal do valor lido). So' pra diagnostico/aviso -- lerResultadoEmCentavos
+// ja' recusa a leitura sozinho nesse caso.
+bool valorTocaBorda(const CapturaRegiao& cap);
 
 // formata centavos de volta pra texto tipo "R$ 12,34" / "R$ -5,00", so'
 // pra exibir no console.

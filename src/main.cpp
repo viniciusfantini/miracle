@@ -133,13 +133,27 @@ int executarCiclo(Calibracao& cal, HWND leitora, HWND simulador, bool enviar) {
     Estado estado = Estado::COMPRADO_1;
 
     std::optional<long long> ultimoImpresso;
+    bool avisouBorda = false;
 
     while (estado != Estado::FINALIZADO) {
         Sleep(50);
         if (!capResultado.capturar()) continue;
 
         auto valor = lerResultadoEmCentavos(capResultado, cal);
-        if (!valor) continue; // nao bateu com nenhum glifo -- ignora, nao adivinha
+        if (!valor) {
+            // pode ser so' um valor fora do calibrado, mas tambem pode ser
+            // a regiao cortando um caractere (ex.: o sinal "-" sumindo) --
+            // avisa uma vez so', pra nao poluir o console a cada 50ms.
+            if (valorTocaBorda(capResultado) && !avisouBorda) {
+                std::printf(">> AVISO: um caractere do Resultado em Aberto encostou na borda\n"
+                            ">> da regiao capturada -- a leitura esta' sendo IGNORADA de\n"
+                            ">> proposito (pode estar cortando o sinal \"-\"). Recalibre a\n"
+                            ">> regiao com mais folga assim que der.\n");
+                avisouBorda = true;
+            }
+            continue; // nao bateu com nenhum glifo, ou encostou na borda -- ignora, nao adivinha
+        }
+        avisouBorda = false;
 
         if (!ultimoImpresso || *ultimoImpresso != *valor) {
             std::printf(">> resultado em aberto: %s\n", formatarCentavos(*valor).c_str());

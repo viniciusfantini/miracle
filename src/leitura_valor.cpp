@@ -79,9 +79,25 @@ std::vector<Segmento> segmentarCaracteres(const CapturaRegiao& cap) {
     return segmentos;
 }
 
+bool valorTocaBorda(const CapturaRegiao& cap) {
+    std::vector<Segmento> segmentos = segmentarCaracteres(cap);
+    if (segmentos.empty()) return false;
+    return segmentos.front().offsetX == 0 ||
+           segmentos.back().offsetX + segmentos.back().largura >= cap.regiao().largura;
+}
+
 std::optional<long long> lerResultadoEmCentavos(const CapturaRegiao& cap, const Calibracao& cal) {
     std::vector<Segmento> segmentos = segmentarCaracteres(cap);
     if (segmentos.empty()) return std::nullopt;
+
+    // se um pedaco encosta na borda da regiao capturada, a leitura pode
+    // estar com um caractere cortado -- o caso mais perigoso e' o sinal
+    // "-" sumir (ex.: "-10,00" virar so' "10,00"), o que INVERTE o sinal
+    // do resultado (prejuizo lido como lucro). Descarta a leitura inteira
+    // em vez de arriscar isso -- mesma filosofia de nunca adivinhar.
+    bool encostouBorda = segmentos.front().offsetX == 0 ||
+                          segmentos.back().offsetX + segmentos.back().largura >= cap.regiao().largura;
+    if (encostouBorda) return std::nullopt;
 
     std::string reconhecido;
     reconhecido.reserve(segmentos.size());
