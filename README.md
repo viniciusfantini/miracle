@@ -27,37 +27,44 @@ Fluxo fixo, sem leitura de gatilho:
 
 ## Como o Resultado em Aberto é lido
 
-Não é OCR de propósito geral: o valor (ex. `-15,50`, `2,00`, `R$1.234,56`)
-é segmentado em fatias verticais (colunas com "tinta" separadas por
-fundo) e cada fatia é comparada, bitmap exato, contra os glifos
-calibrados (`0`-`9`, `-`, `,`, `.`, `R`, `$`) do MESMO tamanho. Se uma
-fatia não bater com nenhum glifo dentro da tolerância, **ou** se alguma
-fatia encostar na borda da região capturada (risco de caractere cortado,
-o mais perigoso sendo o sinal `-` sumir e inverter o sinal do valor), a
-leitura inteira é descartada (nunca adivinha) — mesma filosofia do badge
-de posição no `roboclone`.
+Via **OCR nativo do Windows** (`Windows.Media.Ocr`, C++/WinRT). O badge
+de posição (`Qtd`) continua por comparação de bitmap exato (poucas
+aparências fixas, técnica que já funciona bem ali — ver `roboclone`),
+mas o Resultado em Aberto é um valor CONTÍNUO com fonte/cor (lucro
+verde, prejuízo vermelho)/tamanho variando — depois de várias rodadas
+tentando fazer isso com segmentação por coluna + bitmap por caractere
+(problemas recorrentes: limiar de tinta sensível a kerning de cada par
+de dígitos, "R$" aparecendo/sumindo, provável quebra em valores
+negativos), trocado (18/09/2026) pro OCR do sistema — resolve isso tudo
+de fábrica, sem precisar treinar caractere nenhum.
 
-O campo é alinhado à direita: a mesma região precisa ser larga o
-bastante pro maior valor esperado, o que faz o label `"R$"` aparecer
-sozinho quando o valor é pequeno (sobra espaço à esquerda) — o `"R"` e
-o `"$"` são reconhecidos e simplesmente ignorados na conversão pra
-centavos, em qualquer posição no texto reconhecido.
+A captura da região é ampliada 6x antes de mandar pro OCR (texto de UI
+pequeno fica bem mais confiável ampliado), e o texto reconhecido é
+filtrado pra só os caracteres que importam (dígitos, `-`, `,`, `.`)
+antes de interpretar sinal/vírgula dos centavos/separador de milhar.
+Se o OCR não reconhecer nada interpretável (ou reconhecer algo
+ambíguo, tipo 0 ou 2+ vírgulas), a leitura inteira é descartada — nunca
+adivinha, mesma filosofia do badge de posição no `roboclone`.
 
 ## Uso
 
 ```
 build.bat            # compila Miracle.exe (precisa do MSVC Build Tools)
-Miracle.exe calibrar # passo a passo: badge FLAT + glifos do Resultado em Aberto
+Miracle.exe calibrar # passo a passo: badge FLAT + regiao do Resultado em Aberto
 Miracle.exe debug    # roda o ciclo lendo tudo, mas SO' AVISA o que mandaria -- nao envia nada
 Miracle.exe rodar    # roda o ciclo de verdade (ver acima) -- manda ordem na janela simulador
 ```
 
-Na calibração do Resultado em Aberto, compre bastante contrato ANTES de
-clicar os cantos da região, pra desenhá-la já no tamanho máximo real
-(ex. `-R$10.394,00`) em vez de justa demais em cima de um valor pequeno.
-Cada rodada de calibração salva uma foto congelada
-(`miracle_calibracao_valor.bmp`) pra você digitar o valor sem correr
-atrás do preço mudando ao vivo na tela.
+Na calibração do Resultado em Aberto, agora é só clicar os 2 cantos —
+sem treinar caractere nenhum. O programa salva uma foto
+(`miracle_calibracao_valor.bmp`) e já mostra o que o OCR leu ali, pra
+você confirmar visualmente que a região está bem enquadrada antes de
+seguir.
+
+Requer o pacote de OCR do Windows instalado (normalmente já vem, mas se
+`Miracle.exe` reclamar na inicialização: Configurações > Hora e idioma
+> Idioma e região > opções do idioma > adicionar "Reconhecimento óptico
+de caracteres").
 
 Valide sempre em `debug` primeiro: confirme que "flat" é reconhecido
 corretamente e que o Resultado em Aberto lido no console bate com o que
