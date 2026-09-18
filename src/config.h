@@ -7,56 +7,32 @@
 //    Motivo: quem manda as ordens aqui e' o proprio Miracle, entao ele
 //    confia na PROPRIA contagem de contratos (sabe que comprou, sabe que
 //    reforcou) -- o badge so' serve pra confirmar "esta' zerado" antes de
-//    comecar um ciclo novo, nao pra recontar a posicao toda vez.
+//    comecar um ciclo novo, nao pra recontar a posicao toda vez. Isso
+//    continua bitmap exato (poucas aparencias fixas, exatamente o caso
+//    que essa tecnica resolve bem).
 //
 // 2) Campo "Resultado em Aberto" (ver imagem/resultado em aberto.png) --
-//    um valor monetario CONTINUO (ex. "2,00", "-15,50"), bem diferente do
-//    badge (que tem um conjunto pequeno e fixo de aparencias possiveis).
-//    Lido DIGITO A DIGITO: a regiao inteira e' segmentada em caracteres
-//    (por coluna de pixel com/sem "tinta"), cada segmento e' comparado
-//    contra os glifos calibrados (0-9, "-", ",", ".", "R", "$") por
-//    bitmap exato, igual a tecnica ja' usada pro badge -- so' que agora
-//    com varios "moldes" pequenos em vez de um conjunto fixo de
-//    aparencias inteiras.
-//    O "." e' o separador de milhar do formato BR (ex. "1.000,00" quando
-//    o resultado passa de R$1.000) -- ignorado na hora de converter pra
-//    centavos, so' precisa ser reconhecido pra nao quebrar a segmentacao.
-//    "R"/"$" entram pelo mesmo motivo (18/09/2026): o campo e' alinhado a'
-//    DIREITA, entao a mesma regiao larga o suficiente pra caber um valor
-//    grande inevitavelmente mostra o "R$" (label fixo a' esquerda) quando
-//    o valor e' pequeno e sobra espaco. Sao ignorados na conversao, igual
-//    o ".". (Chegou a se pensar que "R" e "$" ficavam sempre colados sem
-//    gap nessa fonte, mas isso foi um diagnostico errado -- inspecionando
-//    o pixel de verdade em "R$127,00", quem colava era o "2" com o "7",
-//    nao o "R$"; a causa real era o limiar de tinta baixo, ver
-//    leitura_valor.cpp. R e $ sao caracteres separados normais.)
+//    um valor monetario CONTINUO (ex. "2,00", "-15,50", "R$1.234,56"),
+//    com cor variando (lucro/prejuizo) e tamanho variando com o numero de
+//    digitos. Depois de repetidas voltas tentando ler isso por
+//    comparacao de bitmap por caractere (limiar de tinta sensivel a
+//    kerning, "R$" as vezes colado, cor mudando com o sinal...), trocado
+//    (18/09/2026) pro OCR nativo do Windows (Windows.Media.Ocr via
+//    C++/WinRT, ver leitura_valor.cpp) -- resolve tudo isso de fabrica,
+//    sem precisar calibrar caractere nenhum. So' precisa apontar a
+//    regiao (2 cliques), nao treinar glifo.
 #pragma once
 
 #include "captura_tela.h"
 #include <string>
-#include <vector>
-#include <map>
-
-struct Glifo {
-    std::vector<BYTE> bitmap; // largura x altura (a altura de regiaoResultado), BGRA
-    int largura = 0;
-};
 
 struct Calibracao {
     RegiaoTela regiaoFlat;
     std::vector<BYTE> referenciaFlat;
     long long toleranciaFlat = 0;
 
-    RegiaoTela regiaoResultado; // pode incluir o "R$" -- ele e' reconhecido e ignorado (ver leitura_valor.cpp)
-    std::map<char, Glifo> glifos; // chaves esperadas: '0'..'9', '-', ',', '.', 'R', '$'
-    long long toleranciaGlifo = 0;
+    RegiaoTela regiaoResultado; // lido via OCR (Windows.Media.Ocr) -- ver leitura_valor.cpp
 };
-
-// caracteres que uma leitura valida do Resultado em Aberto precisa ter
-// calibrados (ver calibracao.cpp). "." e' o separador de milhar BR (ex.
-// "1.000,00"); "R" e "$" aparecem quando o valor e' pequeno o bastante
-// pra sobrar espaco na regiao e revelar o label "R$".
-inline std::string glifosNecessarios() { return "0123456789-,.R$"; }
 
 bool salvarCalibracao(const Calibracao& c, const std::string& caminhoBase);
 bool carregarCalibracao(Calibracao& c, const std::string& caminhoBase);

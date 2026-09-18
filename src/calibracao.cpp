@@ -11,13 +11,11 @@
 
 namespace {
 
-constexpr long long TOLERANCIA_GLIFO_PADRAO = 60;
 const char* CAMINHO_IMAGEM_CALIBRACAO = "miracle_calibracao_valor.bmp";
 
-// salva a captura como .bmp -- uma "foto congelada" do que foi lido, pra
-// o operador poder digitar o valor olhando uma imagem PARADA em vez de
-// correr atras do preco mudando ao vivo na tela (o Resultado em Aberto
-// pode atualizar varias vezes por segundo).
+// salva a captura como .bmp -- so' pra o operador conferir visualmente
+// que a regiao clicada enquadra bem o valor (sem cortar nada), antes de
+// confiar no OCR pra ler ela de verdade.
 bool salvarBmp(const CapturaRegiao& cap, const std::string& caminho) {
     const RegiaoTela& r = cap.regiao();
     const std::vector<BYTE>& buf = cap.pixelsBrutos();
@@ -75,14 +73,6 @@ bool perguntarSimNao(const std::string& pergunta) {
     return !linha.empty() && (linha[0] == 's' || linha[0] == 'S');
 }
 
-std::string glifosFaltando(const Calibracao& cal) {
-    std::string faltando;
-    for (char c : glifosNecessarios()) {
-        if (cal.glifos.find(c) == cal.glifos.end()) faltando.push_back(c);
-    }
-    return faltando;
-}
-
 } // namespace
 
 bool rodarCalibracao(Calibracao& out) {
@@ -112,163 +102,44 @@ bool rodarCalibracao(Calibracao& out) {
     long long diffFlatComprado = diferencaEntre(out.referenciaFlat, referenciaComprado);
     out.toleranciaFlat = diffFlatComprado > 0 ? diffFlatComprado / 3 : 30;
     std::printf(">> diferenca flat<->comprado=%lld -> toleranciaFlat=%lld\n", diffFlatComprado, out.toleranciaFlat);
+    std::printf(">> pode zerar a posicao de teste agora.\n");
 
     std::printf("\nParte 2: campo \"Resultado em Aberto\" (ver imagem/resultado em\n");
     std::printf("aberto.png) -- o valor monetario que o Miracle vai ler pra decidir\n");
-    std::printf("reforco/saida. Como o campo e' alinhado a' DIREITA e a regiao tem\n");
-    std::printf("tamanho FIXO, dessa vez o \"R$\" PODE entrar na regiao -- ele vai\n");
-    std::printf("aparecer sozinho quando o valor for pequeno (sobra espaco a'\n");
-    std::printf("esquerda) e o programa ja' sabe ignorar isso.\n");
-    std::printf(">> Antes de clicar os cantos, compre BASTANTE contrato (o suficiente\n");
-    std::printf(">> pra deixar o Resultado em Aberto BEM grande, positivo ou negativo\n");
-    std::printf(">> -- ex.: -R$10.394,00) -- assim a regiao ja' e' desenhada no\n");
-    std::printf(">> tamanho maximo real que ela vai precisar exibir, em vez de ficar\n");
-    std::printf(">> justa demais so' com a posicao pequena de 1 contrato. Deixe uma\n");
-    std::printf(">> pequena margem a' esquerda de onde o \"-\" ou o primeiro digito\n");
-    std::printf(">> aparecem agora, pra nenhum caractere ficar EXATAMENTE colado na\n");
-    std::printf(">> borda (o programa rejeita leitura que encosta na borda, pra nunca\n");
-    std::printf(">> arriscar cortar um sinal \"-\").\n");
-    aguardarEnter("compre bastante contrato agora e confirme quando o valor estiver bem grande");
-
-    POINT r1 = aguardarClique("canto SUPERIOR ESQUERDO do valor \"Resultado em Aberto\" (pode incluir o \"R$\")");
-    if (r1.x < 0 && r1.y < 0) return false;
-    POINT r2 = aguardarClique("canto INFERIOR DIREITO desse valor");
-    if (r2.x < 0 && r2.y < 0) return false;
-    out.regiaoResultado = regiaoDeDoisPontos(r1, r2);
-
-    CapturaRegiao capResultado(out.regiaoResultado);
-    out.glifos.clear();
-
-    std::printf("\nAgora vamos calibrar os caracteres (0-9, \"-\", \",\", \".\", \"R\" e\n");
-    std::printf("\"$\") um valor de cada vez. Como a regiao e' alinhada a' DIREITA e\n");
-    std::printf("tem tamanho FIXO, quando o valor for PEQUENO vai sobrar espaco a'\n");
-    std::printf("esquerda mostrando o label \"R$\" -- e' esperado, digite \"R$\" junto\n");
-    std::printf("(ex.: \"R$2,00\", \"R$-8,00\") quando ele aparecer na foto (sao 2\n");
-    std::printf("caracteres normais, \"R\" e \"$\", cada um com seu proprio pedaco na\n");
-    std::printf("imagem). Quando o valor for GRANDE o \"R$\" pode nao aparecer --\n");
-    std::printf("digite so' o numero nesse caso. Precisa de pelo menos uma rodada\n");
-    std::printf("com o valor PEQUENO (pra calibrar \"R\" e \"$\") e uma com o valor\n");
-    std::printf("GRANDE (mais digitos), alem de variar o preco/posicao entre\n");
-    std::printf("rodadas pra cobrir todos os digitos.\n");
-    std::printf("O Resultado em Aberto pode mudar varias vezes por segundo, rapido\n");
-    std::printf("demais pra digitar olhando a tela ao vivo -- por isso, a cada\n");
-    std::printf("rodada o programa captura e salva uma FOTO CONGELADA do campo em\n");
-    std::printf("'%s' (nesta pasta): abra esse arquivo num visualizador\n", CAMINHO_IMAGEM_CALIBRACAO);
-    std::printf("de imagens e digite exatamente o que esta' nele -- ele nao muda\n");
-    std::printf("mais, mesmo que o preco continue mudando na tela real.\n");
+    std::printf("reforco/saida. Lido via OCR (reconhecimento de texto nativo do\n");
+    std::printf("Windows) -- so' precisa apontar a regiao, sem treinar caractere\n");
+    std::printf("nenhum. Pode incluir o \"R$\" na regiao sem problema, o OCR ignora.\n");
 
     while (true) {
+        POINT r1 = aguardarClique("canto SUPERIOR ESQUERDO do valor \"Resultado em Aberto\"");
+        if (r1.x < 0 && r1.y < 0) return false;
+        POINT r2 = aguardarClique("canto INFERIOR DIREITO desse valor");
+        if (r2.x < 0 && r2.y < 0) return false;
+        out.regiaoResultado = regiaoDeDoisPontos(r1, r2);
+
+        CapturaRegiao capResultado(out.regiaoResultado);
         if (!capResultado.capturar()) { std::printf(">> falha ao capturar a tela.\n"); return false; }
-        std::vector<BYTE> primeiraCaptura = capResultado.pixelsBrutos();
-        Sleep(80);
-        if (!capResultado.capturar()) { std::printf(">> falha ao capturar a tela.\n"); return false; }
-        if (capResultado.pixelsBrutos() != primeiraCaptura) {
-            std::printf(">> o valor mudou bem na hora da captura (o preco deve ter mexido) --\n"
-                        ">> tentando de novo...\n");
-            continue;
-        }
 
-        if (!salvarBmp(capResultado, CAMINHO_IMAGEM_CALIBRACAO)) {
-            std::printf(">> falha ao salvar a imagem de calibracao (%s).\n", CAMINHO_IMAGEM_CALIBRACAO);
-            return false;
-        }
+        salvarBmp(capResultado, CAMINHO_IMAGEM_CALIBRACAO);
+        auto valor = lerResultadoEmCentavos(capResultado);
 
-        std::printf("\n>> Salvei '%s' -- abra esse arquivo agora e digite\n", CAMINHO_IMAGEM_CALIBRACAO);
-        std::printf(">> EXATAMENTE o valor que esta' nele (ex.: 2,00 ou -15,50, ou\n");
-        std::printf(">> 1.234,56 se passar de mil; digite \"R$\" junto se aparecer na\n");
-        std::printf(">> foto -- a VIRGULA e' sempre a dos centavos, o PONTO (quando\n");
-        std::printf(">> tiver) e' so' separador de milhar): ");
-        std::fflush(stdout);
-        std::string digitado;
-        std::getline(std::cin, digitado);
-
-        bool caractereInvalido = false;
-        for (char c : digitado) {
-            if (glifosNecessarios().find(c) == std::string::npos) { caractereInvalido = true; break; }
-        }
-        if (caractereInvalido) {
-            std::printf(">> caractere fora do esperado (so' 0-9, \"-\", \",\", \".\", \"R\" e\n"
-                        ">> \"$\" sao validos). Tente de novo com a MESMA foto ainda\n"
-                        ">> salva em '%s'.\n", CAMINHO_IMAGEM_CALIBRACAO);
-            continue;
-        }
-
-        std::vector<Segmento> segmentos = segmentarCaracteres(capResultado);
-
-        bool encostouBorda = !segmentos.empty() &&
-                              (segmentos.front().offsetX == 0 ||
-                               segmentos.back().offsetX + segmentos.back().largura >= capResultado.regiao().largura);
-        if (encostouBorda) {
-            std::printf(">> AVISO: um pedaco encostou na borda da regiao capturada em '%s' --\n"
-                        ">> a regiao provavelmente esta' cortando um caractere (ex.: o sinal\n"
-                        ">> \"-\" ou um digito). Cancele (ESC no proximo clique) e recalibre a\n"
-                        ">> regiao do Resultado em Aberto com bem mais folga nas laterais.\n",
-                        CAMINHO_IMAGEM_CALIBRACAO);
-        }
-
-        if (digitado.size() != segmentos.size()) {
-            std::printf(">> nao bate: voce digitou %zu caractere(s) mas o programa achou %zu\n"
-                        ">> pedaco(s) na imagem. Confira em '%s' se a regiao esta'\n"
-                        ">> certa (so' o numero, sem \"R$\") e tente de novo.\n",
-                        digitado.size(), segmentos.size(), CAMINHO_IMAGEM_CALIBRACAO);
-            continue;
-        }
-
-        for (size_t i = 0; i < segmentos.size(); ++i) {
-            Glifo g;
-            g.bitmap = segmentos[i].bitmap;
-            g.largura = segmentos[i].largura;
-            out.glifos[digitado[i]] = std::move(g);
-        }
-        std::printf(">> calibrado: ");
-        for (const auto& par : out.glifos) std::printf("'%c' ", par.first);
-        std::printf("\n");
-
-        std::string faltando = glifosFaltando(out);
-        if (!faltando.empty()) {
-            std::printf(">> ainda faltam: %s -- continue variando o valor.\n", faltando.c_str());
+        std::printf("\n>> Salvei '%s' -- confira se a regiao enquadra bem o valor\n", CAMINHO_IMAGEM_CALIBRACAO);
+        std::printf(">> (sem cortar nada, com uma pequena folga nas bordas).\n");
+        if (valor) {
+            std::printf(">> OCR leu: %s\n", formatarCentavos(*valor).c_str());
         } else {
-            std::printf(">> todos os caracteres necessarios (%s) ja' foram calibrados.\n",
-                        glifosNecessarios().c_str());
-            if (!perguntarSimNao("Quer calibrar mais alguma rodada mesmo assim (mais amostras)")) break;
+            std::printf(">> OCR nao conseguiu reconhecer nada nessa captura.\n");
         }
-    }
 
-    // toleranciaGlifo = menor diferenca entre QUAISQUER dois glifos de
-    // MESMA LARGURA (larguras diferentes nunca sao comparadas de
-    // verdade, entao nao entram nessa conta) -- se nao houver nenhum par
-    // assim (ex.: cada caractere tem uma largura unica), usa um padrao
-    // fixo generoso.
-    long long menor = -1;
-    char pa = 0, pb = 0;
-    for (auto ia = out.glifos.begin(); ia != out.glifos.end(); ++ia) {
-        auto ib = ia; ++ib;
-        for (; ib != out.glifos.end(); ++ib) {
-            if (ia->second.largura != ib->second.largura) continue;
-            long long d = diferencaEntre(ia->second.bitmap, ib->second.bitmap);
-            if (d < 0) continue;
-            if (menor < 0 || d < menor) { menor = d; pa = ia->first; pb = ib->first; }
-        }
+        if (perguntarSimNao("A leitura acima bate com o que esta' na tela e a regiao ficou bem enquadrada")) break;
+        std::printf(">> vamos clicar os cantos de novo.\n");
     }
-    out.toleranciaGlifo = menor >= 0 ? menor / 3 : TOLERANCIA_GLIFO_PADRAO;
 
     std::printf("\n== Calibracao concluida ==\n");
     std::printf("regiao flat: x=%d y=%d %dx%d, toleranciaFlat=%lld\n",
                 out.regiaoFlat.x, out.regiaoFlat.y, out.regiaoFlat.largura, out.regiaoFlat.altura, out.toleranciaFlat);
     std::printf("regiao resultado: x=%d y=%d %dx%d\n",
                 out.regiaoResultado.x, out.regiaoResultado.y, out.regiaoResultado.largura, out.regiaoResultado.altura);
-    std::printf("glifos calibrados: %zu\n", out.glifos.size());
-    if (menor >= 0) {
-        std::printf("par mais parecido (mesma largura): '%c' vs '%c', diferenca=%lld -> toleranciaGlifo=%lld\n",
-                    pa, pb, menor, out.toleranciaGlifo);
-        if (menor < 30) {
-            std::printf(">> AVISO: dois glifos de mesma largura ficaram muito parecidos --\n"
-                        ">> confira se a regiao do resultado esta' bem enquadrada.\n");
-        }
-    } else {
-        std::printf("nenhum par de glifos com a mesma largura -- usando toleranciaGlifo padrao=%lld\n",
-                    out.toleranciaGlifo);
-    }
 
     return true;
 }

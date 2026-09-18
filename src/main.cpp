@@ -133,27 +133,13 @@ int executarCiclo(Calibracao& cal, HWND leitora, HWND simulador, bool enviar) {
     Estado estado = Estado::COMPRADO_1;
 
     std::optional<long long> ultimoImpresso;
-    bool avisouBorda = false;
 
     while (estado != Estado::FINALIZADO) {
         Sleep(50);
         if (!capResultado.capturar()) continue;
 
-        auto valor = lerResultadoEmCentavos(capResultado, cal);
-        if (!valor) {
-            // pode ser so' um valor fora do calibrado, mas tambem pode ser
-            // a regiao cortando um caractere (ex.: o sinal "-" sumindo) --
-            // avisa uma vez so', pra nao poluir o console a cada 50ms.
-            if (valorTocaBorda(capResultado) && !avisouBorda) {
-                std::printf(">> AVISO: um caractere do Resultado em Aberto encostou na borda\n"
-                            ">> da regiao capturada -- a leitura esta' sendo IGNORADA de\n"
-                            ">> proposito (pode estar cortando o sinal \"-\"). Recalibre a\n"
-                            ">> regiao com mais folga assim que der.\n");
-                avisouBorda = true;
-            }
-            continue; // nao bateu com nenhum glifo, ou encostou na borda -- ignora, nao adivinha
-        }
-        avisouBorda = false;
+        auto valor = lerResultadoEmCentavos(capResultado);
+        if (!valor) continue; // OCR nao reconheceu nada interpretavel -- ignora, nao adivinha
 
         if (!ultimoImpresso || *ultimoImpresso != *valor) {
             std::printf(">> resultado em aberto: %s\n", formatarCentavos(*valor).c_str());
@@ -208,10 +194,14 @@ int modoDebugOuRodar(bool enviar) {
 int main(int argc, char** argv) {
     std::string modo = argc > 1 ? argv[1] : "";
 
+    if (modo != "calibrar" && modo != "debug" && modo != "rodar") {
+        std::printf("uso: Miracle.exe <calibrar|debug|rodar>\n");
+        return 1;
+    }
+
+    if (!iniciarOcr()) return 1;
+
     if (modo == "calibrar") return modoCalibrar();
     if (modo == "debug") return modoDebugOuRodar(false);
-    if (modo == "rodar") return modoDebugOuRodar(true);
-
-    std::printf("uso: Miracle.exe <calibrar|debug|rodar>\n");
-    return 1;
+    return modoDebugOuRodar(true);
 }
