@@ -29,16 +29,18 @@ OcrEngine g_engine{ nullptr };
 // OCR chegou a PERDER um digito inteiro (leu "-16 0" em vez de
 // "-16,00"). Trocado pra interpolacao BILINEAR (bordas suaves, mais
 // parecido com o texto anti-aliased que o OCR foi treinado pra ler).
-// Ainda testado ao vivo: com 10x a virgula (traco bem fino) ficava
-// borrada perto do digito anterior e virava um "7" fantasma (ex.
-// "-27,00" lido "RS -27700"). Subido pra 16x -- mais area de verdade
-// pra separar tracos finos do digito vizinho em vez de so' borrar.
-constexpr int FATOR_AMPLIACAO = 16;
+// Tentativa de 16x + margem de 24px resolveu a duvida de exatidao mas
+// deixou o RecognizeAsync bem mais lento (imagem ~3x maior em pixels) --
+// inaceitavel pra esse projeto (delay = dinheiro, ver CLAUDE.md).
+// Recuado pra um meio-termo mais leve: 8x + margem pequena.
+constexpr int FATOR_AMPLIACAO = 8;
 
 // margem de fundo (na imagem JA ampliada) ao redor do texto antes de
 // mandar pro OCR -- texto colado na borda do recorte tende a confundir
 // o motor (efeito de bordas conhecido em pre-processamento de OCR).
-constexpr int PADDING_PX = 24;
+// Pequena de proposito pra nao inflar o tamanho da imagem (custa
+// latencia no RecognizeAsync).
+constexpr int PADDING_PX = 8;
 
 BYTE amostra(const std::vector<BYTE>& origem, int largura, int altura, int x, int y, int canal) {
     x = std::clamp(x, 0, largura - 1);
