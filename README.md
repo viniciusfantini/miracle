@@ -39,8 +39,14 @@ mesma filosofia do badge de posição no `roboclone`.
 ```
 build.bat            # compila Miracle.exe (precisa do MSVC Build Tools)
 Miracle.exe calibrar # passo a passo: badge FLAT + glifos do Resultado em Aberto
-Miracle.exe rodar    # roda o ciclo do primeiro teste (ver acima)
+Miracle.exe debug    # roda o ciclo lendo tudo, mas SO' AVISA o que mandaria -- nao envia nada
+Miracle.exe rodar    # roda o ciclo de verdade (ver acima) -- manda ordem na janela simulador
 ```
+
+Valide sempre em `debug` primeiro: confirme que "flat" é reconhecido
+corretamente e que o Resultado em Aberto lido no console bate com o que
+está na tela, antes de confiar no `rodar` (que manda ordem de verdade na
+conta simuladora).
 
 Use sempre a conta **SIMULADORA** como destino — nunca aponte para uma
 conta real.

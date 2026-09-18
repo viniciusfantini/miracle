@@ -94,22 +94,26 @@ int modoCalibrar() {
     return 0;
 }
 
-int modoRodar() {
-    Calibracao cal;
-    if (!carregarCalibracaoOuAvisar(cal)) return 1;
+// manda o atalho de verdade (enviar=true, modo 'rodar') ou so' avisa o
+// que MANDARIA sem enviar nada (enviar=false, modo 'debug') -- mesma
+// separacao debug/rodar do roboclone, pra poder validar a leitura antes
+// de confiar em mandar ordem de verdade.
+void mandarComando(HWND alvo, char tecla, bool enviar, const char* rotulo) {
+    if (enviar) {
+        enviarAltTeclaComEspacamento(alvo, tecla);
+        std::printf(">> %s enviado.\n", rotulo);
+    } else {
+        std::printf(">> [DEBUG] mandaria %s (ALT+%c) -- nada foi enviado de verdade.\n", rotulo, tecla);
+    }
+}
 
-    HWND leitora = escolherJanelaPorClique("LEITORA (onde le' o badge de posicao e o Resultado em Aberto)");
-    if (!leitora) { std::printf(">> cancelado.\n"); return 1; }
-
-    HWND simulador = escolherJanelaPorClique("SIMULADOR (pra onde vai mandar as ordens)");
-    if (!simulador) { std::printf(">> cancelado.\n"); return 1; }
-
+int executarCiclo(Calibracao& cal, HWND leitora, HWND simulador, bool enviar) {
     if (leitora == simulador) {
-        std::printf(">> AVISO: leitora e simulador sao a MESMA janela -- os comandos enviados\n"
-                    ">> vao mudar a leitura, o que pode nao fazer sentido pra esse teste.\n");
+        std::printf(">> AVISO: leitora e simulador sao a MESMA janela -- se enviar=true isso muda\n"
+                    ">> a propria leitura, o que pode nao fazer sentido pra esse teste.\n");
     }
 
-    definirEspacamentoMinimoMs(pedirEspacamentoMinimoMs());
+    if (enviar) definirEspacamentoMinimoMs(pedirEspacamentoMinimoMs());
 
     CapturaRegiao capFlat(cal.regiaoFlat);
     CapturaRegiao capResultado(cal.regiaoResultado);
@@ -119,8 +123,7 @@ int modoRodar() {
     std::printf(">> flat confirmado.\n");
 
     std::printf("\n== Passo 2: entrada (COMPRA, 1 contrato) ==\n");
-    enviarAltTeclaComEspacamento(simulador, 'C');
-    std::printf(">> COMPRA enviada.\n");
+    mandarComando(simulador, 'C', enviar, "COMPRA (entrada)");
 
     std::printf("\n== Passo 3: gestao pelo Resultado em Aberto ==\n");
     std::printf(">> alvo 1: +R$10,00 (venda) | stop 1: -R$20,00 (reforco -> 2 contratos)\n");
@@ -145,27 +148,23 @@ int modoRodar() {
 
         if (estado == Estado::COMPRADO_1) {
             if (*valor >= ALVO_CENTAVOS_1) {
-                std::printf(">> alvo de +R$10,00 atingido (%s) -- enviando VENDA (saida).\n",
-                            formatarCentavos(*valor).c_str());
-                enviarAltTeclaComEspacamento(simulador, 'V');
+                std::printf(">> alvo de +R$10,00 atingido (%s).\n", formatarCentavos(*valor).c_str());
+                mandarComando(simulador, 'V', enviar, "VENDA (saida)");
                 estado = Estado::FINALIZADO;
             } else if (*valor <= STOP_CENTAVOS_1) {
-                std::printf(">> stop de -R$20,00 atingido (%s) -- enviando COMPRA (reforco).\n",
-                            formatarCentavos(*valor).c_str());
-                enviarAltTeclaComEspacamento(simulador, 'C');
+                std::printf(">> stop de -R$20,00 atingido (%s).\n", formatarCentavos(*valor).c_str());
+                mandarComando(simulador, 'C', enviar, "COMPRA (reforco)");
                 estado = Estado::COMPRADO_2;
                 ultimoImpresso.reset();
             }
         } else if (estado == Estado::COMPRADO_2) {
             if (*valor >= ALVO_CENTAVOS_2) {
-                std::printf(">> alvo de +R$20,00 (com reforco) atingido (%s) -- enviando ZERAR.\n",
-                            formatarCentavos(*valor).c_str());
-                enviarAltTeclaComEspacamento(simulador, 'A');
+                std::printf(">> alvo de +R$20,00 (com reforco) atingido (%s).\n", formatarCentavos(*valor).c_str());
+                mandarComando(simulador, 'A', enviar, "ZERAR (alvo)");
                 estado = Estado::FINALIZADO;
             } else if (*valor <= STOP_CENTAVOS_2) {
-                std::printf(">> stop de -R$60,00 (com reforco) atingido (%s) -- enviando ZERAR.\n",
-                            formatarCentavos(*valor).c_str());
-                enviarAltTeclaComEspacamento(simulador, 'A');
+                std::printf(">> stop de -R$60,00 (com reforco) atingido (%s).\n", formatarCentavos(*valor).c_str());
+                mandarComando(simulador, 'A', enviar, "ZERAR (stop)");
                 estado = Estado::FINALIZADO;
             }
         }
@@ -175,14 +174,30 @@ int modoRodar() {
     return 0;
 }
 
+int modoDebugOuRodar(bool enviar) {
+    Calibracao cal;
+    if (!carregarCalibracaoOuAvisar(cal)) return 1;
+
+    HWND leitora = escolherJanelaPorClique("LEITORA (onde le' o badge de posicao e o Resultado em Aberto)");
+    if (!leitora) { std::printf(">> cancelado.\n"); return 1; }
+
+    HWND simulador = escolherJanelaPorClique(
+        enviar ? "SIMULADOR (pra onde vai mandar as ordens)"
+               : "SIMULADOR (so' pra referencia -- modo debug nao manda nada)");
+    if (!simulador) { std::printf(">> cancelado.\n"); return 1; }
+
+    return executarCiclo(cal, leitora, simulador, enviar);
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
     std::string modo = argc > 1 ? argv[1] : "";
 
     if (modo == "calibrar") return modoCalibrar();
-    if (modo == "rodar") return modoRodar();
+    if (modo == "debug") return modoDebugOuRodar(false);
+    if (modo == "rodar") return modoDebugOuRodar(true);
 
-    std::printf("uso: Miracle.exe <calibrar|rodar>\n");
+    std::printf("uso: Miracle.exe <calibrar|debug|rodar>\n");
     return 1;
 }
