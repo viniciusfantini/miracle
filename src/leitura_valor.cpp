@@ -7,6 +7,7 @@
 #include <winrt/Windows.Security.Cryptography.h>
 #include <winrt/Windows.Storage.Streams.h>
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <vector>
@@ -21,24 +22,48 @@ namespace {
 OcrEngine g_engine{ nullptr };
 
 // OCR de fonte pequena de UI fica bem mais confiavel com o texto
-// ampliado antes de mandar pro motor -- 6x deixa uma letra de ~12px de
-// altura virar ~72px, bem dentro da faixa confortavel do OcrEngine.
-constexpr int FATOR_AMPLIACAO = 6;
+// ampliado antes de mandar pro motor. Testado ao vivo (18/09/2026):
+// com ampliacao por "vizinho mais proximo" (blocuda, sem suavizacao) o
+// OCR chegou a PERDER um digito inteiro (leu "-16 0" em vez de
+// "-16,00"). Trocado pra interpolacao BILINEAR (bordas suaves, mais
+// parecido com o texto anti-aliased que o OCR foi treinado pra ler) e
+// aumentado o fator de 6x pra 10x.
+constexpr int FATOR_AMPLIACAO = 10;
+
+BYTE amostra(const std::vector<BYTE>& origem, int largura, int altura, int x, int y, int canal) {
+    x = std::clamp(x, 0, largura - 1);
+    y = std::clamp(y, 0, altura - 1);
+    return origem[((size_t)y * largura + x) * 4 + canal];
+}
 
 std::vector<BYTE> ampliar(const std::vector<BYTE>& origem, int largura, int altura, int fator,
                            int& larguraOut, int& alturaOut) {
     larguraOut = largura * fator;
     alturaOut = altura * fator;
     std::vector<BYTE> dst((size_t)larguraOut * alturaOut * 4);
+
     for (int y = 0; y < alturaOut; ++y) {
-        int ySrc = y / fator;
-        const BYTE* linhaSrc = origem.data() + (size_t)ySrc * largura * 4;
-        BYTE* linhaDst = dst.data() + (size_t)y * larguraOut * 4;
+        double srcYf = (y + 0.5) / fator - 0.5;
+        int y0 = (int)std::floor(srcYf);
+        double fy = srcYf - y0;
+
         for (int x = 0; x < larguraOut; ++x) {
-            int xSrc = x / fator;
-            const BYTE* p = linhaSrc + (size_t)xSrc * 4;
-            BYTE* q = linhaDst + (size_t)x * 4;
-            q[0] = p[0]; q[1] = p[1]; q[2] = p[2]; q[3] = 255;
+            double srcXf = (x + 0.5) / fator - 0.5;
+            int x0 = (int)std::floor(srcXf);
+            double fx = srcXf - x0;
+
+            BYTE* q = dst.data() + ((size_t)y * larguraOut + x) * 4;
+            for (int canal = 0; canal < 3; ++canal) {
+                double v00 = amostra(origem, largura, altura, x0, y0, canal);
+                double v01 = amostra(origem, largura, altura, x0 + 1, y0, canal);
+                double v10 = amostra(origem, largura, altura, x0, y0 + 1, canal);
+                double v11 = amostra(origem, largura, altura, x0 + 1, y0 + 1, canal);
+                double topo = v00 + (v01 - v00) * fx;
+                double base = v10 + (v11 - v10) * fx;
+                double valor = topo + (base - topo) * fy;
+                q[canal] = (BYTE)std::clamp(valor, 0.0, 255.0);
+            }
+            q[3] = 255;
         }
     }
     return dst;
