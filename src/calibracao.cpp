@@ -93,34 +93,62 @@ bool rodarCalibracao(Calibracao& out) {
     std::printf("cada vez. Pode ser com a conta parada (o valor so' muda com o\n");
     std::printf("preco ou com uma operacao nova) -- va' variando a posicao/deixando\n");
     std::printf("o preco andar um pouco entre cada rodada, pra pegar digitos\n");
-    std::printf("diferentes.\n");
+    std::printf("diferentes. A CAPTURA so' acontece depois que voce aperta ENTER (nao\n");
+    std::printf("antes) -- assim ela fica o mais proxima possivel do valor que voce\n");
+    std::printf("acabou de ler e digitar, em vez de correr o risco do preco ja' ter\n");
+    std::printf("mudado o valor na tela entre a captura e voce digitar.\n");
+    std::printf("A regiao clicada tem tamanho FIXO -- se o valor puder crescer (ex.:\n");
+    std::printf("de \"2,00\" pra \"1234,56\"), deixe folga nas laterais ao clicar os\n");
+    std::printf("cantos, senao digitos extras no futuro podem ficar cortados.\n");
 
     while (true) {
-        if (!capResultado.capturar()) { std::printf(">> falha ao capturar a tela.\n"); return false; }
-        std::vector<Segmento> segmentos = segmentarCaracteres(capResultado);
-
-        std::printf("\n>> %zu caractere(s) detectado(s) no campo agora.\n", segmentos.size());
-        std::printf(">> Digite EXATAMENTE o que esta' aparecendo nesse campo agora\n");
-        std::printf(">> (ex.: 2,00 ou -15,50, sem \"R$\"): ");
+        std::printf("\n>> Olhe pro campo AGORA e digite EXATAMENTE o que esta' aparecendo\n");
+        std::printf(">> (ex.: 2,00 ou -15,50, sem \"R$\") -- a captura acontece assim que\n");
+        std::printf(">> voce apertar ENTER: ");
         std::fflush(stdout);
         std::string digitado;
         std::getline(std::cin, digitado);
+
+        if (!capResultado.capturar()) { std::printf(">> falha ao capturar a tela.\n"); return false; }
+        std::vector<BYTE> primeiraCaptura = capResultado.pixelsBrutos();
+        Sleep(80);
+        if (!capResultado.capturar()) { std::printf(">> falha ao capturar a tela.\n"); return false; }
+        if (capResultado.pixelsBrutos() != primeiraCaptura) {
+            std::printf(">> o valor mudou bem na hora da captura (o preco deve ter mexido) --\n"
+                        ">> descartando essa rodada, digite de novo.\n");
+            continue;
+        }
+
+        std::vector<Segmento> segmentos = segmentarCaracteres(capResultado);
 
         if (digitado.size() != segmentos.size()) {
             std::printf(">> nao bate: voce digitou %zu caractere(s) mas o programa achou %zu\n"
                         ">> pedaco(s) na imagem. Confira se a regiao esta' certa (so' o\n"
                         ">> numero, sem \"R$\") e tente de novo.\n", digitado.size(), segmentos.size());
-        } else {
-            for (size_t i = 0; i < segmentos.size(); ++i) {
-                Glifo g;
-                g.bitmap = segmentos[i].bitmap;
-                g.largura = segmentos[i].largura;
-                out.glifos[digitado[i]] = std::move(g);
-            }
-            std::printf(">> calibrado: ");
-            for (const auto& par : out.glifos) std::printf("'%c' ", par.first);
-            std::printf("\n");
+            continue;
         }
+
+        if (!segmentos.empty()) {
+            const Segmento& primeiroSeg = segmentos.front();
+            const Segmento& ultimoSeg = segmentos.back();
+            bool encostouBorda = primeiroSeg.offsetX == 0 ||
+                                  ultimoSeg.offsetX + ultimoSeg.largura >= capResultado.regiao().largura;
+            if (encostouBorda) {
+                std::printf(">> AVISO: um caractere encostou na borda da regiao capturada -- se o\n"
+                            ">> valor puder ficar maior no futuro (mais digitos), pode cortar.\n"
+                            ">> Considere recalibrar a regiao com mais folga nas laterais.\n");
+            }
+        }
+
+        for (size_t i = 0; i < segmentos.size(); ++i) {
+            Glifo g;
+            g.bitmap = segmentos[i].bitmap;
+            g.largura = segmentos[i].largura;
+            out.glifos[digitado[i]] = std::move(g);
+        }
+        std::printf(">> calibrado: ");
+        for (const auto& par : out.glifos) std::printf("'%c' ", par.first);
+        std::printf("\n");
 
         std::string faltando = glifosFaltando(out);
         if (!faltando.empty()) {
