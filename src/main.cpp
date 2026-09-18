@@ -11,6 +11,7 @@
 //        <= -R$20,00 -> manda COMPRA (reforco, vira 2 contratos);
 //      depois do reforco, na posicao de 2 contratos:
 //        >= +R$20,00 -> manda ZERAR (ALT+A) e encerra;
+//        <= -R$60,00 -> manda ZERAR (ALT+A), stop, e encerra;
 //   4. roda EXATAMENTE 1 ciclo e para -- sem reentrada automatica (decisao
 //      de seguranca, pra nao repetir os loops descontrolados ja' vividos
 //      no roboclone).
@@ -32,6 +33,7 @@ const std::string CAMINHO_CALIBRACAO = "calibracao_miracle.txt";
 constexpr long long ALVO_CENTAVOS_1 = 1000;    // +R$10,00 -> sai (venda)
 constexpr long long STOP_CENTAVOS_1 = -2000;   // -R$20,00 -> reforco (compra)
 constexpr long long ALVO_CENTAVOS_2 = 2000;    // +R$20,00, ja' com reforco -> zera
+constexpr long long STOP_CENTAVOS_2 = -6000;   // -R$60,00, ja' com reforco -> zera (stop)
 
 int pedirEspacamentoMinimoMs() {
     std::printf("\nEspacamento minimo entre comandos em ms (ENTER = %d): ", DELAY_MIN_ENTRE_COPIAS_MS_PADRAO);
@@ -122,7 +124,7 @@ int modoRodar() {
 
     std::printf("\n== Passo 3: gestao pelo Resultado em Aberto ==\n");
     std::printf(">> alvo 1: +R$10,00 (venda) | stop 1: -R$20,00 (reforco -> 2 contratos)\n");
-    std::printf(">> alvo 2 (apos reforco): +R$20,00 (zera)\n");
+    std::printf(">> alvo 2 (apos reforco): +R$20,00 (zera) | stop 2 (apos reforco): -R$60,00 (zera)\n");
 
     enum class Estado { COMPRADO_1, COMPRADO_2, FINALIZADO };
     Estado estado = Estado::COMPRADO_1;
@@ -160,9 +162,12 @@ int modoRodar() {
                             formatarCentavos(*valor).c_str());
                 enviarAltTeclaComEspacamento(simulador, 'A');
                 estado = Estado::FINALIZADO;
+            } else if (*valor <= STOP_CENTAVOS_2) {
+                std::printf(">> stop de -R$60,00 (com reforco) atingido (%s) -- enviando ZERAR.\n",
+                            formatarCentavos(*valor).c_str());
+                enviarAltTeclaComEspacamento(simulador, 'A');
+                estado = Estado::FINALIZADO;
             }
-            // sem stop adicional depois do reforco neste primeiro teste --
-            // limitacao conhecida, nao pedida pelo dono ainda.
         }
     }
 

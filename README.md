@@ -20,12 +20,10 @@ Fluxo fixo, sem leitura de gatilho:
    - **≤ -R$20,00** → manda **COMPRA** (reforço, vira 2 contratos).
      Depois do reforço, na posição de 2 contratos:
      - **≥ +R$20,00** → manda **ZERAR** (`ALT+A`) e encerra o ciclo.
+     - **≤ -R$60,00** → manda **ZERAR** (`ALT+A`), stop, e encerra o ciclo.
 6. Roda **exatamente 1 ciclo e para** — sem reentrada automática. Decisão
    de segurança para evitar repetir os loops descontrolados já vividos no
    `roboclone` (ver `CLAUDE.md` de lá).
-
-Sem stop adicional depois do reforço além do alvo de +R$20,00 — limitação
-conhecida deste primeiro teste, não pedida ainda pelo dono.
 
 ## Como o Resultado em Aberto é lido
 
