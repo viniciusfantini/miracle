@@ -21,11 +21,15 @@
 //    O "." e' o separador de milhar do formato BR (ex. "1.000,00" quando
 //    o resultado passa de R$1.000) -- ignorado na hora de converter pra
 //    centavos, so' precisa ser reconhecido pra nao quebrar a segmentacao.
-//    "R"/"$" entram pelo mesmo motivo (18/09/2026): o campo e' alinhado a'
+//    "R" entra pelo mesmo motivo (18/09/2026): o campo e' alinhado a'
 //    DIREITA, entao a mesma regiao larga o suficiente pra caber um valor
 //    grande inevitavelmente mostra o "R$" (label fixo a' esquerda) quando
-//    o valor e' pequeno e sobra espaco. Sao ignorados na conversao, igual
-//    o ".".
+//    o valor e' pequeno e sobra espaco. "R" representa o simbolo "R$"
+//    INTEIRO (nao so' a letra R) -- testado ao vivo (18/09/2026): nessa
+//    fonte o "R" e o "$" ficam colados sem nenhum espaco entre eles, entao
+//    a segmentacao SEMPRE os junta num pedaco so' (nunca 2 separados) --
+//    calibrar/reconhecer como 1 caractere so' evita ficar brigando com uma
+//    contagem que nunca vai bater. Ignorado na conversao, igual o ".".
 #pragma once
 
 #include "captura_tela.h"
@@ -43,16 +47,17 @@ struct Calibracao {
     std::vector<BYTE> referenciaFlat;
     long long toleranciaFlat = 0;
 
-    RegiaoTela regiaoResultado; // pode incluir o "R$" -- ele e' reconhecido e ignorado (ver leitura_valor.cpp)
-    std::map<char, Glifo> glifos; // chaves esperadas: '0'..'9', '-', ',', '.', 'R', '$'
+    RegiaoTela regiaoResultado; // pode incluir o "R$" -- ele e' reconhecido (como 1 pedaco so') e ignorado
+    std::map<char, Glifo> glifos; // chaves esperadas: '0'..'9', '-', ',', '.', 'R' (== simbolo "R$" inteiro)
     long long toleranciaGlifo = 0;
 };
 
 // caracteres que uma leitura valida do Resultado em Aberto precisa ter
 // calibrados (ver calibracao.cpp). "." e' o separador de milhar BR (ex.
-// "1.000,00"); "R" e "$" aparecem quando o valor e' pequeno o bastante
-// pra sobrar espaco na regiao e revelar o label "R$" (ver config.h).
-inline std::string glifosNecessarios() { return "0123456789-,.R$"; }
+// "1.000,00"); "R" (== "R$" junto, ver comentario acima) aparece quando o
+// valor e' pequeno o bastante pra sobrar espaco na regiao e revelar o
+// label.
+inline std::string glifosNecessarios() { return "0123456789-,.R"; }
 
 bool salvarCalibracao(const Calibracao& c, const std::string& caminhoBase);
 bool carregarCalibracao(Calibracao& c, const std::string& caminhoBase);

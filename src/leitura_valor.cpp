@@ -115,16 +115,18 @@ std::optional<long long> lerResultadoEmCentavos(const CapturaRegiao& cap, const 
         reconhecido.push_back(melhorChar);
     }
 
-    // reconhecido agora e' algo tipo "-15,50", "2,00" ou "R$-15,50" (o
+    // reconhecido agora e' algo tipo "-15,50", "2,00" ou "R-15,50" (o
     // campo e' alinhado a' direita e tem tamanho fixo -- quando o valor e'
-    // pequeno sobra espaco na regiao e o label "R$" aparece junto). "R" e
-    // "$" sao so' decoracao, tira antes de interpretar o numero -- em
-    // QUALQUER posicao, nao so' no inicio, pra nao depender de "R$" vir
-    // sempre antes do sinal de menos.
+    // pequeno sobra espaco na regiao e o label "R$" aparece junto; 'R'
+    // aqui representa o simbolo "R$" INTEIRO, ver config.h -- R e $ ficam
+    // colados sem espaco nessa fonte, entao sao calibrados/reconhecidos
+    // como 1 caractere so'). E' so' decoracao, tira antes de interpretar
+    // o numero -- em QUALQUER posicao, nao so' no inicio, pra nao
+    // depender de "R$" vir sempre antes do sinal de menos.
     std::string semPrefixo;
     semPrefixo.reserve(reconhecido.size());
     for (char c : reconhecido) {
-        if (c == 'R' || c == '$') continue;
+        if (c == 'R') continue;
         semPrefixo.push_back(c);
     }
 

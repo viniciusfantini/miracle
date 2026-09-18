@@ -139,16 +139,17 @@ bool rodarCalibracao(Calibracao& out) {
     CapturaRegiao capResultado(out.regiaoResultado);
     out.glifos.clear();
 
-    std::printf("\nAgora vamos calibrar os caracteres (0-9, \"-\", \",\", \".\", \"R\" e\n");
-    std::printf("\"$\") um valor de cada vez. Como a regiao e' alinhada a' DIREITA e\n");
-    std::printf("tem tamanho FIXO, quando o valor for PEQUENO vai sobrar espaco a'\n");
-    std::printf("esquerda mostrando o label \"R$\" -- e' esperado, digite \"R$\" junto\n");
-    std::printf("(ex.: \"R$2,00\", \"R$-8,00\") quando ele aparecer na foto. Quando o\n");
-    std::printf("valor for GRANDE o \"R$\" pode nao aparecer -- digite so' o numero\n");
-    std::printf("nesse caso. Precisa de pelo menos uma rodada com o valor PEQUENO\n");
-    std::printf("(pra calibrar 'R' e '$') e uma com o valor GRANDE (mais digitos),\n");
-    std::printf("alem de variar o preco/posicao entre rodadas pra cobrir todos os\n");
-    std::printf("digitos.\n");
+    std::printf("\nAgora vamos calibrar os caracteres (0-9, \"-\", \",\", \".\" e o\n");
+    std::printf("simbolo \"R$\" junto) um valor de cada vez. Como a regiao e'\n");
+    std::printf("alinhada a' DIREITA e tem tamanho FIXO, quando o valor for PEQUENO\n");
+    std::printf("vai sobrar espaco a' esquerda mostrando o label \"R$\" -- e' esperado,\n");
+    std::printf("digite \"R$\" junto (ex.: \"R$2,00\", \"R$-8,00\") quando ele aparecer na\n");
+    std::printf("foto (o programa trata \"R$\" como 1 caractere so' -- nessa fonte ele\n");
+    std::printf("sempre aparece colado, sem espaco entre o R e o $). Quando o valor\n");
+    std::printf("for GRANDE o \"R$\" pode nao aparecer -- digite so' o numero nesse\n");
+    std::printf("caso. Precisa de pelo menos uma rodada com o valor PEQUENO (pra\n");
+    std::printf("calibrar o \"R$\") e uma com o valor GRANDE (mais digitos), alem de\n");
+    std::printf("variar o preco/posicao entre rodadas pra cobrir todos os digitos.\n");
     std::printf("O Resultado em Aberto pode mudar varias vezes por segundo, rapido\n");
     std::printf("demais pra digitar olhando a tela ao vivo -- por isso, a cada\n");
     std::printf("rodada o programa captura e salva uma FOTO CONGELADA do campo em\n");
@@ -174,20 +175,30 @@ bool rodarCalibracao(Calibracao& out) {
 
         std::printf("\n>> Salvei '%s' -- abra esse arquivo agora e digite\n", CAMINHO_IMAGEM_CALIBRACAO);
         std::printf(">> EXATAMENTE o valor que esta' nele (ex.: 2,00 ou -15,50, ou\n");
-        std::printf(">> 1.234,56 se passar de mil -- sem \"R$\"; a VIRGULA e' sempre a\n");
-        std::printf(">> dos centavos, o PONTO (quando tiver) e' so' separador de milhar): ");
+        std::printf(">> 1.234,56 se passar de mil; digite \"R$\" junto se aparecer na\n");
+        std::printf(">> foto -- a VIRGULA e' sempre a dos centavos, o PONTO (quando\n");
+        std::printf(">> tiver) e' so' separador de milhar): ");
         std::fflush(stdout);
         std::string digitado;
         std::getline(std::cin, digitado);
+
+        // "R" e "$" ficam colados sem nenhum espaco nessa fonte -- a
+        // segmentacao SEMPRE junta os dois num pedaco so' (nunca 2
+        // separados). Colapsa "R$" digitado num "R" so' antes de
+        // comparar/gravar, senao a contagem nunca bate (o operador ve'
+        // "R$" na imagem e digita 2 caracteres pra 1 pedaco real).
+        for (size_t pos = digitado.find("R$"); pos != std::string::npos; pos = digitado.find("R$")) {
+            digitado.replace(pos, 2, "R");
+        }
 
         bool caractereInvalido = false;
         for (char c : digitado) {
             if (glifosNecessarios().find(c) == std::string::npos) { caractereInvalido = true; break; }
         }
         if (caractereInvalido) {
-            std::printf(">> caractere fora do esperado (so' 0-9, \"-\", \",\" e \".\" sao\n"
-                        ">> validos). Tente de novo com a MESMA foto ainda salva em\n"
-                        ">> '%s'.\n", CAMINHO_IMAGEM_CALIBRACAO);
+            std::printf(">> caractere fora do esperado (so' 0-9, \"-\", \",\", \".\" e \"R\"\n"
+                        ">> [pro \"R$\" junto] sao validos). Tente de novo com a MESMA\n"
+                        ">> foto ainda salva em '%s'.\n", CAMINHO_IMAGEM_CALIBRACAO);
             continue;
         }
 
