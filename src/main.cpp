@@ -198,9 +198,10 @@ int modoLer() {
 
     CapturaRegiao capResultado(cal.regiaoResultado);
     std::optional<long long> ultimoImpresso;
-    std::string ultimoTextoBrutoFalho;
+    std::string ultimoTextoBruto;
 
-    std::printf("\n>> Lendo o Resultado em Aberto (Ctrl+C pra parar)...\n");
+    std::printf("\n>> Lendo o Resultado em Aberto (Ctrl+C pra parar) -- mostrando o\n");
+    std::printf(">> texto bruto do OCR junto, pra depurar (temporario).\n");
 
     while (true) {
         Sleep(50);
@@ -208,13 +209,13 @@ int modoLer() {
 
         std::string textoBruto;
         auto valor = lerResultadoEmCentavos(capResultado, &textoBruto);
-        if (!valor) {
-            if (!textoBruto.empty() && textoBruto != ultimoTextoBrutoFalho) {
-                std::printf(">> OCR leu (bruto, nao interpretavel): \"%s\"\n", textoBruto.c_str());
-                ultimoTextoBrutoFalho = textoBruto;
-            }
-            continue;
+
+        if (!textoBruto.empty() && textoBruto != ultimoTextoBruto) {
+            std::printf(">> OCR bruto: \"%s\"\n", textoBruto.c_str());
+            ultimoTextoBruto = textoBruto;
         }
+
+        if (!valor) continue;
 
         if (!ultimoImpresso || *ultimoImpresso != *valor) {
             std::printf(">> resultado em aberto: %s\n", formatarCentavos(*valor).c_str());
