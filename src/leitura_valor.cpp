@@ -7,14 +7,16 @@
 namespace {
 
 // diferenca por canal (BGR) pra considerar "tem tinta" nesse pixel.
-// Medido ao vivo (18/09/2026) numa captura real do Resultado em Aberto:
-// o anti-aliasing entre caracteres vizinhos (principalmente a virgula,
-// que e' fina e fica perto da base) chega a uns 39 de diferenca mesmo
-// SEM ser o traco real do digito -- um limiar de 35 deixava colado sem
-// nenhuma coluna de fundo puro entre caracteres. 100 fica confortavel
-// no meio do platô onde a segmentacao ficou estavel (testado de 80 a
-// 150 na mesma captura, sem erodir o traco real dos digitos).
-constexpr int LIMIAR_TINTA = 100;
+// Medido ao vivo (18/09/2026) em DUAS capturas reais diferentes do
+// Resultado em Aberto: o anti-aliasing entre caracteres vizinhos chega a
+// uns 39 de diferenca mesmo SEM ser o traco real do digito -- um limiar
+// baixo deixa colado sem nenhuma coluna de fundo puro entre caracteres
+// (em "R$127,00" isso colava especificamente o "2" e o "7", nao o "R$"
+// como se pensou antes de olhar o pixel de verdade). Testado varios
+// limiares nas duas capturas: 135 fica dentro do platô estavel das duas
+// (80-150 na 1a, 120-200 na 2a), separando TODOS os caracteres
+// corretamente sem erodir o traco real dos digitos.
+constexpr int LIMIAR_TINTA = 135;
 
 bool pixelTemTinta(const BYTE* p, BYTE fundoB, BYTE fundoG, BYTE fundoR) {
     return std::abs((int)p[0] - fundoB) > LIMIAR_TINTA ||
@@ -115,18 +117,16 @@ std::optional<long long> lerResultadoEmCentavos(const CapturaRegiao& cap, const 
         reconhecido.push_back(melhorChar);
     }
 
-    // reconhecido agora e' algo tipo "-15,50", "2,00" ou "R-15,50" (o
+    // reconhecido agora e' algo tipo "-15,50", "2,00" ou "R$-15,50" (o
     // campo e' alinhado a' direita e tem tamanho fixo -- quando o valor e'
-    // pequeno sobra espaco na regiao e o label "R$" aparece junto; 'R'
-    // aqui representa o simbolo "R$" INTEIRO, ver config.h -- R e $ ficam
-    // colados sem espaco nessa fonte, entao sao calibrados/reconhecidos
-    // como 1 caractere so'). E' so' decoracao, tira antes de interpretar
-    // o numero -- em QUALQUER posicao, nao so' no inicio, pra nao
-    // depender de "R$" vir sempre antes do sinal de menos.
+    // pequeno sobra espaco na regiao e o label "R$" aparece junto). "R" e
+    // "$" sao so' decoracao, tira antes de interpretar o numero -- em
+    // QUALQUER posicao, nao so' no inicio, pra nao depender de "R$" vir
+    // sempre antes do sinal de menos.
     std::string semPrefixo;
     semPrefixo.reserve(reconhecido.size());
     for (char c : reconhecido) {
-        if (c == 'R') continue;
+        if (c == 'R' || c == '$') continue;
         semPrefixo.push_back(c);
     }
 
