@@ -7,6 +7,7 @@
 #include <winrt/Windows.Security.Cryptography.h>
 #include <winrt/Windows.Storage.Streams.h>
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -118,53 +119,62 @@ std::optional<long long> lerResultadoEmCentavos(const CapturaRegiao& cap, std::s
         OcrResult resultado = g_engine.RecognizeAsync(bitmap).get();
         std::wstring texto{ resultado.Text().c_str() };
 
-        if (textoBrutoOut) {
-            textoBrutoOut->clear();
-            textoBrutoOut->reserve(texto.size());
-            for (wchar_t wc : texto) textoBrutoOut->push_back(wc < 128 ? (char)wc : '?'); // so' diagnostico, ascii
-        }
+        std::string bruto;
+        bruto.reserve(texto.size());
+        for (wchar_t wc : texto) bruto.push_back(wc < 128 ? (char)wc : '?'); // ascii-lossy, so' diagnostico/parse
 
-        // filtra so' o que interessa pro valor -- descarta "R$", espacos e
-        // qualquer artefato de reconhecimento (letras soltas etc.), igual
-        // a' filosofia de "nunca adivinha" ja' usada em todo o projeto.
-        for (wchar_t wc : texto) {
-            if ((wc >= L'0' && wc <= L'9') || wc == L'-' || wc == L',' || wc == L'.') {
-                reconhecido.push_back((char)wc);
-            }
-        }
+        if (textoBrutoOut) *textoBrutoOut = bruto;
+        reconhecido = bruto;
     } catch (...) {
         if (textoBrutoOut) textoBrutoOut->assign("<excecao no OCR>");
         return std::nullopt;
     }
 
-    if (reconhecido.empty()) return std::nullopt;
+    // Testado ao vivo (18/09/2026): o OCR confunde caracteres parecidos
+    // nessa fonte -- "$" vira "S" (ex. "R$" -> "RS"), "0" vira "O", "2"
+    // vira "Z", e a virgula as vezes vira "r" ou simplesmente some (ex.
+    // "R$-2,00" lido como "RS -ZOO", "-4,00" como "-4r00"). Em NENHUM
+    // caso observado um digito de verdade sumiu -- so' trocou de forma.
+    // Em vez de depender da virgula (que e' o caractere menos confiavel
+    // de todos aqui), tira o prefixo "R$"/"RS" (so' pode aparecer no
+    // INICIO, campo alinhado a' direita), corrige as confusoes de
+    // digito conhecidas, descarta tudo que nao for digito/sinal, e usa
+    // a convencao de que o Resultado em Aberto SEMPRE tem exatamente 2
+    // casas decimais -- os 2 ultimos digitos reconhecidos sao sempre os
+    // centavos, nao importa se a virgula apareceu ou nao.
+    size_t inicio = reconhecido.find_first_not_of(' ');
+    if (inicio == std::string::npos) return std::nullopt;
+    reconhecido = reconhecido.substr(inicio);
 
-    // exige exatamente 1 virgula (a dos centavos) -- se o OCR reconheceu
-    // 0 ou 2+ virgulas, a leitura esta' ambigua/errada, descarta em vez
-    // de adivinhar qual e' a certa.
-    if (std::count(reconhecido.begin(), reconhecido.end(), ',') != 1) return std::nullopt;
+    auto comecaComRS = [](const std::string& s) {
+        if (s.size() < 2) return false;
+        char a = std::toupper((unsigned char)s[0]);
+        char b = std::toupper((unsigned char)s[1]);
+        return a == 'R' && (b == 'S' || b == '$');
+    };
+    if (comecaComRS(reconhecido)) reconhecido = reconhecido.substr(2);
 
     bool negativo = false;
-    size_t idx = 0;
-    if (reconhecido[0] == '-') { negativo = true; idx = 1; }
+    size_t idx = reconhecido.find_first_not_of(' ');
+    if (idx != std::string::npos && reconhecido[idx] == '-') { negativo = true; idx++; }
 
-    size_t posVirgula = reconhecido.find(',', idx);
-    std::string parteInteira = reconhecido.substr(idx, posVirgula - idx);
-    std::string parteCentavos = reconhecido.substr(posVirgula + 1);
-    if (parteInteira.empty() || parteCentavos.size() != 2) return std::nullopt;
-    for (char c : parteCentavos) if (c < '0' || c > '9') return std::nullopt;
-
-    // "." e' o separador de milhar do formato BR (ex. "1.000") -- so'
-    // marca agrupamento, nao entra no valor.
-    std::string parteInteiraSemPontos;
-    for (char c : parteInteira) {
-        if (c == '.') continue;
-        if (c < '0' || c > '9') return std::nullopt;
-        parteInteiraSemPontos.push_back(c);
+    std::string digitos;
+    for (size_t i = idx; i < reconhecido.size(); ++i) {
+        char c = reconhecido[i];
+        if (c == 'O' || c == 'o') c = '0';
+        else if (c == 'Z' || c == 'z') c = '2';
+        else if (c == 'I' || c == 'l') c = '1';
+        else if (c == 'S' || c == 's') c = '5'; // seguro aqui -- o "S" do "R$" ja' foi removido acima
+        if (c >= '0' && c <= '9') digitos.push_back(c);
+        // qualquer outra coisa (virgula, ponto, "r", espaco...) e' so' separador/ruido -- ignora
     }
-    if (parteInteiraSemPontos.empty()) return std::nullopt;
 
-    long long valorInteiro = std::atoll(parteInteiraSemPontos.c_str());
+    if (digitos.size() < 3) return std::nullopt; // precisa de pelo menos "0,00" (3 digitos)
+
+    std::string parteCentavos = digitos.substr(digitos.size() - 2);
+    std::string parteInteira = digitos.substr(0, digitos.size() - 2);
+
+    long long valorInteiro = std::atoll(parteInteira.c_str());
     long long valorCentavos = std::atoll(parteCentavos.c_str());
     long long total = valorInteiro * 100 + valorCentavos;
     return negativo ? -total : total;
