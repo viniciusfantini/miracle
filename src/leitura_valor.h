@@ -21,7 +21,9 @@ bool iniciarOcr();
 // tenta ler o valor monetario atual (em CENTAVOS, com sinal) na regiao
 // capturada, via OCR. Devolve nullopt se o OCR nao reconhecer nada
 // interpretavel como um valor monetario valido (nunca adivinha).
-std::optional<long long> lerResultadoEmCentavos(const CapturaRegiao& cap);
+// 'textoBrutoOut', se nao for nullptr, recebe o texto cru que o OCR
+// reconheceu (antes de filtrar/interpretar) -- so' pra diagnostico.
+std::optional<long long> lerResultadoEmCentavos(const CapturaRegiao& cap, std::string* textoBrutoOut = nullptr);
 
 // formata centavos de volta pra texto tipo "R$ 12,34" / "R$ -5,00", so'
 // pra exibir no console.

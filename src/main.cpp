@@ -133,13 +133,24 @@ int executarCiclo(Calibracao& cal, HWND leitora, HWND simulador, bool enviar) {
     Estado estado = Estado::COMPRADO_1;
 
     std::optional<long long> ultimoImpresso;
+    std::string ultimoTextoBrutoFalho;
 
     while (estado != Estado::FINALIZADO) {
         Sleep(50);
         if (!capResultado.capturar()) continue;
 
-        auto valor = lerResultadoEmCentavos(capResultado);
-        if (!valor) continue; // OCR nao reconheceu nada interpretavel -- ignora, nao adivinha
+        std::string textoBruto;
+        auto valor = lerResultadoEmCentavos(capResultado, enviar ? nullptr : &textoBruto);
+        if (!valor) {
+            // no modo debug, mostra o texto cru que o OCR leu (so' quando
+            // MUDA, pra nao poluir) -- ajuda a ver POR QUE nao reconheceu
+            // em vez de so' ficar em silencio.
+            if (!enviar && !textoBruto.empty() && textoBruto != ultimoTextoBrutoFalho) {
+                std::printf(">> [DEBUG] OCR leu (bruto, nao interpretavel): \"%s\"\n", textoBruto.c_str());
+                ultimoTextoBrutoFalho = textoBruto;
+            }
+            continue; // OCR nao reconheceu nada interpretavel -- ignora, nao adivinha
+        }
 
         if (!ultimoImpresso || *ultimoImpresso != *valor) {
             std::printf(">> resultado em aberto: %s\n", formatarCentavos(*valor).c_str());

@@ -72,7 +72,7 @@ bool iniciarOcr() {
     return true;
 }
 
-std::optional<long long> lerResultadoEmCentavos(const CapturaRegiao& cap) {
+std::optional<long long> lerResultadoEmCentavos(const CapturaRegiao& cap, std::string* textoBrutoOut) {
     if (!g_engine) return std::nullopt;
 
     const RegiaoTela& r = cap.regiao();
@@ -93,6 +93,12 @@ std::optional<long long> lerResultadoEmCentavos(const CapturaRegiao& cap) {
         OcrResult resultado = g_engine.RecognizeAsync(bitmap).get();
         std::wstring texto{ resultado.Text().c_str() };
 
+        if (textoBrutoOut) {
+            textoBrutoOut->clear();
+            textoBrutoOut->reserve(texto.size());
+            for (wchar_t wc : texto) textoBrutoOut->push_back(wc < 128 ? (char)wc : '?'); // so' diagnostico, ascii
+        }
+
         // filtra so' o que interessa pro valor -- descarta "R$", espacos e
         // qualquer artefato de reconhecimento (letras soltas etc.), igual
         // a' filosofia de "nunca adivinha" ja' usada em todo o projeto.
@@ -102,6 +108,7 @@ std::optional<long long> lerResultadoEmCentavos(const CapturaRegiao& cap) {
             }
         }
     } catch (...) {
+        if (textoBrutoOut) textoBrutoOut->assign("<excecao no OCR>");
         return std::nullopt;
     }
 
